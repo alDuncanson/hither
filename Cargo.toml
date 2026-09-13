@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.91"
+
+[workspace.dependencies]
+anyhow = "1"
+iroh = "1"
+iroh-blobs = "0.103"
+n0-future = "0.3"
+irpc = "0.17"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "signal", "time"] }
+tracing = "0.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,4 @@
+# iroh 1.x and iroh-blobs 0.103 require Rust 1.91+. Pinned to an installed
+# toolchain; switch to "stable" once `rustup update stable` is past 1.91.
+[toolchain]
+channel = "1.97.0"

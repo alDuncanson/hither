@@ -1,0 +1,24 @@
+[package]
+name = "share-cli"
+description = "Share files and folders directly, peer to peer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "share"
+path = "src/main.rs"
+
+[dependencies]
+share-core = { path = "../core" }
+anyhow.workspace = true
+iroh.workspace = true
+iroh-blobs.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+indicatif = "0.18"
+console = "0.16"
+qrcode = { version = "0.14", default-features = false }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
