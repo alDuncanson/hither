@@ -215,6 +215,55 @@ QUIC, WebRTC, relays, PAKE) and how other tools handle this is in
 link anatomy, data model, friction map, UX principles, deployment topology,
 phases and open decisions are in `docs/architecture.md` (with diagrams).
 
+## The zero-account model (why no sign-up is ever needed)
+
+Four jobs a file transfer needs, and which primitive does each one here:
+
+| Job | Primitive | What it gives the person |
+|---|---|---|
+| "Did I get the right bytes?" (integrity) | BLAKE3 content addressing: the link names the collection by its 32-byte root hash; every 16 KiB chunk is verified against that root as it arrives | Correct by construction, resume for free, any holder can serve, no server's word to trust |
+| "Am I allowed to fetch this?" (authorization) | The hash is 256 bits and unguessable, and iroh-blobs only serves what you ask for by hash | Holding the link *is* the permission; nothing to log in to. Treat links like the files |
+| "Am I talking to the right machine?" (authentication) | An endpoint id is a public key; dialing it means TLS pins that key | No certificate authority, no account server, no impersonation by the network |
+| "Can anyone else read it?" (confidentiality) | QUIC/TLS 1.3 between the two endpoints; relays forward ciphertext | Nothing at rest anywhere, so nothing to encrypt at rest (until a keeper exists) |
+
+Consequences for friction: identity is created locally and silently
+(`hither id`), authorization is link possession, and the only thing a person
+ever does is open a link and run two commands. Persisting the identity file
+(iroh's "persistent identity") is what makes inbox links stable, lets an
+inbox remember senders, and lets iroh's DNS discovery map an id to its
+current addresses. Cost: a private key file to keep; losing it means a new id
+and new inbox link, and there is deliberately no password or recovery flow.
+Add "back up / restore identity" (copy the file, or export as words) before
+anyone relies on an inbox link.
+
+**PAKE is for a different channel.** magic-wormhole and croc solve "the only
+channel is a human voice": a two-word code (~16 bits) plus SPAKE2 yields a
+strong key, a wrong guess fails visibly and burns the code, and the
+rendezvous server sees nothing it can brute-force. Links do not need it (256
+bits of hash is self-sufficient). We would want it only for a spoken-code
+mode: `hither` prints `7-crossover-clockwork`, the other side types it, and a
+tiny rendezvous service matches the two by code and hands over the ticket
+encrypted under the PAKE key. That is the "small web application" worth
+building if short or spoken codes matter: a magic-wormhole-style mailbox
+server, a few hundred lines, zero knowledge. Short links (`hither.link/x7k2`)
+fit the same service: it stores the ticket encrypted with a key that stays in
+the URL fragment.
+
+**Profiles.** Today the sender's `--as` label is a plain string, socially
+fine, cryptographically nothing. Later: a signed profile record (name,
+avatar hash) published under the id the way iroh publishes address records
+via pkarr/DNS, so anyone can resolve id -> name without a server of ours;
+avatars fetched as blobs. An inbox's `--accept-from` list is the seed of a
+local address book (id -> name, "always accept").
+
+**Where a web service would still help, and what it must never hold:** short
+and spoken codes (rendezvous), profile lookup if DNS records prove too small,
+push wake-ups for a future mobile inbox, and the keeper. None of them should
+ever hold plaintext files or private keys.
+
+Release note: bump the workspace `version` in `Cargo.toml` before tagging so
+`hither --version` matches the tag (v0.1.0-alpha.1 binaries report 0.1.0).
+
 ## Next steps, in order
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).
