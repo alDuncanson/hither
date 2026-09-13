@@ -305,6 +305,33 @@ the VPS exists, 3 when the VPS is up; 2 and 3 can share the same CLI surface
 - clippy is part of the toolchain file and CI fails on warnings.
 - `hither doctor` now says to click Allow if macOS showed the dialog.
 
+## Distribution without app stores (decided 2026-09-13)
+
+Kap is the model: a macOS menu bar app shipped as a `.dmg` on GitHub releases
+plus `brew install --cask kap`, never the App Store. The same works for us:
+
+- **Signing and notarization**, not the App Store, is what makes a downloaded
+  app open without Gatekeeper's "cannot be opened" dialog. It needs the paid
+  Apple Developer Program (USD 99/year) for a Developer ID certificate;
+  Tauri v2 signs and notarizes in CI from a few secrets
+  (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`,
+  `APPLE_PASSWORD`, `APPLE_TEAM_ID`, or an App Store Connect API key). No
+  review, no sandbox requirements, ship whenever.
+- The same Developer ID can sign the CLI binary in `release.yml`, which
+  also removes the "accept incoming connections?" firewall prompt: macOS
+  auto-allows signed software by default.
+- **Homebrew tap** for both: `brew install alduncanson/tap/hither` for the
+  CLI and `brew install --cask alduncanson/tap/hither` for the app, from a
+  small `homebrew-tap` repo whose formulas point at the GitHub release
+  assets. Getting into homebrew-core/cask proper needs notability; the tap
+  needs nothing.
+- **Updates**: Tauri's updater plugin checks a signed manifest on GitHub
+  releases and updates the app in place; the CLI can grow `hither upgrade`
+  that re-runs the installer.
+- Until the developer account exists, unsigned builds still work: users
+  right-click, Open, or `xattr -dr com.apple.quarantine`. Fine for the alpha
+  audience, not for friends.
+
 ## Lessons that cost real time
 
 - **Ctrl-C hang in `hither inbox` (fixed in 0.1.0-alpha.3).** The UI task held
