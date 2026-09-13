@@ -30,7 +30,8 @@ curl -fsSL https://alduncanson.github.io/hither/install.sh | sh
 ```
 
 Or skip the separate step entirely. `run.sh` installs hither if it is
-missing and then runs whatever follows, so a link's page can show one
+missing, updates it if a newer release exists (set `HITHER_NO_UPDATE=1` to
+skip), and then runs whatever follows, so a link's page can show one
 command:
 
 ```sh

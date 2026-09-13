@@ -357,16 +357,18 @@ below needs the account's certificates and secrets, which live there.
    notarization): Users and Access -> Integrations -> App Store Connect API,
    role Developer. Download the `.p8` once; note Key ID and Issuer ID.
 3. **GitHub secrets** on alDuncanson/hither: `APPLE_CERTIFICATE` (base64 of
-   the .p12), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`,
-   `APPLE_API_KEY` (Key ID), `APPLE_API_ISSUER`, `APPLE_API_KEY_PATH`
-   contents as `APPLE_API_KEY_CONTENT` (base64 of the .p8), and
-   `KEYCHAIN_PASSWORD` (any random string for the CI keychain).
-4. **Tauri signing in CI.** Add a `desktop-release.yml` on `v*` tags:
-   macos-14 runner, install tauri-cli, write the .p8 to a file, run
-   `cargo tauri build` with the env vars above plus
-   `APPLE_SIGNING_IDENTITY="Developer ID Application: Al Duncanson (TEAMID)"`.
-   Tauri signs, notarizes and staples the .app and .dmg. Upload the dmg to
-   the GitHub release next to the CLI tarballs.
+   the .p12), `APPLE_CERTIFICATE_PASSWORD`,
+   `APPLE_SIGNING_IDENTITY` ("Developer ID Application: Al Duncanson (TEAMID)"),
+   `APPLE_TEAM_ID`, `APPLE_API_KEY` (Key ID), `APPLE_API_ISSUER`,
+   `APPLE_API_KEY_CONTENT` (base64 of the .p8), and `KEYCHAIN_PASSWORD`
+   (any random string for the CI keychain).
+4. **Turn on the desktop release job.** `.github/workflows/desktop-release.yml`
+   already exists (tauri-action, universal build, sign, notarize, staple,
+   attach to the tag's release). It is gated on the repository variable
+   `DESKTOP_RELEASES`; set it to `true` (Settings -> Secrets and variables ->
+   Actions -> Variables) after the secrets, then push a tag. Bump
+   `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json` versions to
+   match the tag first.
 5. **Sign the CLI too** in `release.yml` for the two macOS targets:
    `codesign --sign "Developer ID Application: ..." --options runtime
    --timestamp hither`, then zip and `xcrun notarytool submit --wait` with
@@ -383,6 +385,30 @@ below needs the account's certificates and secrets, which live there.
    Check: tray icon, drop a folder, link on clipboard, paste a link in
    Receive, open the inbox and accept an offer from the CLI, `hither://`
    from the landing page opens the app.
+
+## Auto-update decision (2026-09-13)
+
+`run.sh` (the one-line friend path) now compares the installed version with
+the newest release on every run and reinstalls when they differ, falling
+back to the installed copy when GitHub is unreachable; `HITHER_NO_UPDATE=1`
+skips it. Rationale: that path exists for people who never want to think
+about versions, the installer verifies the release's sha256 so trust is the
+same as the first install, and our protocols are versioned by ALPN so a
+version skew between sender and receiver fails cleanly rather than
+silently. A plain `hither` invocation does *not* self-update: developers
+expect their binaries to stay put, and `hither upgrade` exists. The desktop
+app should get Tauri's updater plugin, which asks before installing, the
+convention for GUI apps.
+
+## Distribution for non-developers (decided 2026-09-13)
+
+Homebrew is a developer tool; it is convenience for us, not the path for
+friends. The path for everyone else is the signed and notarized `.dmg` of
+the desktop app, downloaded from the landing page: open, drag to
+Applications, done, and from then on `hither://` links open in it. Until
+signing is set up, the terminal one-liner is the interim path, Apple's paste
+warning included. An unsigned `.dmg` is never published: Gatekeeper refuses
+it outright on current macOS, which is a worse experience than the terminal.
 
 ## Known upstream alert
 
