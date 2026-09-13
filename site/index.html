@@ -67,6 +67,11 @@
   }
   button.copy:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   button.copy[data-done="true"] { background: var(--ink); color: var(--bg); }
+  .cmd.big { margin-top: 26px; padding: 14px 12px 14px 16px; }
+  .cmd.big code { font-size: 15px; white-space: pre-wrap; word-break: break-all; }
+  .alt { margin-top: 14px; color: var(--ink-soft); font-size: 15px; }
+  .alt code { font-family: var(--mono); font-size: 13px; background: var(--code-bg); padding: 2px 6px; border-radius: 3px; word-break: break-all; }
+  button.copy.small { padding: 4px 8px; font-size: 12px; vertical-align: middle; }
   .note { margin-top: 28px; padding: 14px 16px; border-left: 3px solid var(--accent); color: var(--ink-soft); font-size: 16px; }
   details { margin-top: 40px; border-top: 1px solid var(--rule); padding-top: 18px; }
   summary { font-family: var(--display); font-weight: 700; cursor: pointer; font-size: 18px; }
@@ -87,38 +92,18 @@
   <!-- share link: someone is sending files -->
   <section id="share" hidden>
     <h1>Someone is sending you files.</h1>
-    <p class="lede">Two steps and they land in the folder you run them from. No account, no upload, and the files are checked byte for byte as they arrive.</p>
-    <ol class="steps">
-      <li><div class="step">
-        <h2>Install hither, once</h2>
-        <p>One command. It puts a single small program in <code>~/.local/bin</code>.</p>
-        <div class="cmd"><code id="install-cmd">curl -fsSL https://alduncanson.github.io/hither/install.sh | sh</code><button class="copy" data-copy="install-cmd">Copy</button></div>
-      </div></li>
-      <li><div class="step">
-        <h2>Bring the files hither</h2>
-        <p>Run this in the folder where you want them. It resumes if interrupted.</p>
-        <div class="cmd"><code id="get-cmd">hither <span class="t"></span></code><button class="copy" data-copy="get-cmd">Copy</button></div>
-      </div></li>
-    </ol>
+    <p class="lede">One command, run in the folder where you want them. It installs hither if you don't have it yet, then brings the files hither, checked byte for byte as they arrive.</p>
+    <div class="cmd big"><code id="run-cmd">curl -fsSL https://alduncanson.github.io/hither/run.sh | sh -s -- <span class="t"></span></code><button class="copy" data-copy="run-cmd">Copy</button></div>
+    <p class="alt">Already have hither? Just run <code id="get-cmd">hither <span class="t"></span></code> <button class="copy small" data-copy="get-cmd">Copy</button></p>
     <p class="note">The sender's window has to stay open until you have everything. If the download stops, run the same command again and it picks up where it left off.</p>
   </section>
 
   <!-- inbox link: someone wants you to send them files -->
   <section id="inbox" hidden>
     <h1>Someone gave you their inbox.</h1>
-    <p class="lede">Drop files into it from your own computer. They see what you are offering and accept before anything moves.</p>
-    <ol class="steps">
-      <li><div class="step">
-        <h2>Install hither, once</h2>
-        <p>One command. It puts a single small program in <code>~/.local/bin</code>.</p>
-        <div class="cmd"><code id="install-cmd-2">curl -fsSL https://alduncanson.github.io/hither/install.sh | sh</code><button class="copy" data-copy="install-cmd-2">Copy</button></div>
-      </div></li>
-      <li><div class="step">
-        <h2>Offer your files</h2>
-        <p>Replace the last part with the files or folders you want to send.</p>
-        <div class="cmd"><code id="to-cmd">hither to <span class="t"></span> <span class="ph">photos/</span></code><button class="copy" data-copy="to-cmd">Copy</button></div>
-      </div></li>
-    </ol>
+    <p class="lede">Offer them files from your own computer. Replace <em>photos/</em> with the files or folders you want to send; they see what you're offering and accept before anything moves.</p>
+    <div class="cmd big"><code id="run-to-cmd">curl -fsSL https://alduncanson.github.io/hither/run.sh | sh -s -- to <span class="t"></span> <span class="ph">photos/</span></code><button class="copy" data-copy="run-to-cmd">Copy</button></div>
+    <p class="alt">Already have hither? Just run <code id="to-cmd">hither to <span class="t"></span> <span class="ph">photos/</span></code> <button class="copy small" data-copy="to-cmd">Copy</button></p>
     <p class="note">Keep the window open until it says they have everything. Add <code>--as "Your name"</code> so they know who it's from.</p>
   </section>
 
@@ -138,7 +123,7 @@
       </div></li>
       <li><div class="step">
         <h2>Or open an inbox</h2>
-        <p>A link people can drop files into whenever you're online. You approve each offer.</p>
+        <p>A link people can drop files into whenever you're online. You approve each offer. Save a friend's inbox once with <code>hither friends add sam &lt;link&gt;</code> and then it's just <code>hither sam photos/</code>.</p>
         <div class="cmd"><code id="inbox-cmd">hither inbox</code><button class="copy" data-copy="inbox-cmd">Copy</button></div>
       </div></li>
     </ol>
@@ -159,7 +144,7 @@
       <li><strong>The files cannot arrive corrupted.</strong> Each 16 KiB piece is checked against a BLAKE3 hash tree before it is written.</li>
       <li><strong>It is direct when it can be.</strong> When two networks refuse to connect directly, an encrypted relay forwards the bytes without being able to read them.</li>
     </ul>
-    <p>Anyone holding a link can use it, so share links the way you would share the files themselves. Source and documentation: <a href="https://github.com/alDuncanson/hither">github.com/alDuncanson/hither</a>.</p>
+    <p>Piping a script into <code>sh</code> deserves a look first: <a href="run.sh">run.sh</a> and <a href="install.sh">install.sh</a> are short, plain shell, and only download a release binary from GitHub after checking its SHA-256. Anyone holding a link can use it, so share links the way you would share the files themselves. Source and documentation: <a href="https://github.com/alDuncanson/hither">github.com/alDuncanson/hither</a>.</p>
   </details>
 
   <footer>

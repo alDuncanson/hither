@@ -2,7 +2,7 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'install.sh', '.github/workflows/pages.yml']
+    paths: ['site/**', 'install.sh', 'run.sh', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,6 +24,7 @@ jobs:
           mkdir -p _site
           cp -R site/. _site/
           cp install.sh _site/install.sh
+          cp run.sh _site/run.sh
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
