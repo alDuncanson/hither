@@ -51,23 +51,32 @@ install it or change the channel to `stable`.
 
 `share` is a placeholder for the binary, crates and repo. Criteria: one short
 word, comfortable to type twice a day, reads naturally as both `NAME photos/`
-and `NAME inbox`, not an existing common command, available on crates.io,
-Homebrew and as a domain, no "box" or "drive" connotations.
+and `NAME inbox`, sayable over a phone call and spellable after hearing it,
+not an existing command, free on Homebrew, no trademark clash for a Mac app,
+no "box" or "drive" connotations. crates.io single words are all squatted;
+publish as `NAME-cli` and `NAME-core` with the binary `NAME` (ripgrep ships
+as `rg`, nobody minds).
 
-Candidates jotted down, none checked for availability yet:
+Checked 2026-09-13 (crates.io API, formulae.brew.sh, GitHub user, `command -v`,
+DNS NS lookup as a weak domain signal; "maybe" means no NS record, confirm at
+a registrar):
 
-| name | reads as | notes |
-|---|---|---|
-| `beam` | `beam photos/`, `beam inbox` | direct, fast, sci-fi. Check conflicts (Apache Beam is a library, not a CLI). |
-| `hand` / `pass` | `hand photos/` | plain verbs; `pass` is taken (password manager). |
-| `toss` / `sling` | `toss photos/` | casual; sling reads oddly for inbox. |
-| `ferry` | `ferry photos/` | carries things across; unhurried connotation. |
-| `courier` | `courier photos/` | descriptive, long. |
-| `pigeon` | `pigeon photos/` | memorable; carrier pigeon; a bit jokey. |
-| `parcel` / `pouch` | `parcel inbox` | noun-first; okay for a GUI app name. |
-| `ginseng` | | the previous attempt's name; free to reuse. |
+| name | reads as | crates | brew | .dev / .app / .sh | verdict |
+|---|---|---|---|---|---|
+| **chute** | `chute photos/` · `chute inbox` · "drop it in my chute" | taken (use chute-cli) | free | maybe / taken / taken | **first choice.** A mail chute is a slot you drop things into that delivers them elsewhere: fits both flows, one syllable, five letters. |
+| **hither** | `hither photos/` · "send it hither" | **free** | free | maybe / taken / maybe | **distinctive alternative.** Archaic, charming, unmistakable. Reads better for receiving than sending. |
+| posthaste | `posthaste photos/` | free | free | taken / taken / maybe | perfect meaning (with all speed, from mail riders); nine letters is a lot to type. |
+| ginseng | `ginseng photos/` | free | free | taken / taken / maybe | keep-the-brand option; no semantic link, but neither had Dropbox. |
+| spool | `spool photos/` · `spool inbox` | taken | free | maybe / taken / taken | a spool is a delivery queue; printing connotation. |
+| tote | `tote photos/` | taken | free | all taken | short, carries things; UK betting brand. |
+| beam | `beam photos/` · "beam it to me" | taken | free | all taken | best verb, worst discoverability (Apache Beam, many Beams). |
+| haul, ferry, toss, sling, lob, whisk | verbs | taken | free | all taken | fine words, nothing free around them. |
+| airmail | `airmail inbox` | free | free | all taken | ideal semantics, but Airmail is an established macOS/iOS mail client. No. |
+| handoff, duffel, pigeon, sprocket | | | | | Apple feature, travel API company, Flutter tool, Homebrew formula. No. |
+| sendreel, chutepost, tubepost, sendhither | coinages | free | free | mostly maybe | everything free, but they read like startups. Fallback only. |
 
-Avoid `relay` (means something specific in iroh) and `drop`/`box`.
+Before committing to one: search USPTO TDSR/TESS for software (classes 9 and
+42), confirm the domain at a registrar, and grab the Homebrew tap name.
 
 ## The two flows
 
