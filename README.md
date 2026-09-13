@@ -11,12 +11,16 @@ hither scans/                  # share a folder
 hither img1.jpg img2.tiff      # share a few files
 hither <ticket-or-link>        # bring a share hither, into the current directory
 hither get <ticket-or-link>    # the same, spelled out
+hither scans/ --code           # also print four words to say over the phone...
+hither able-cactus-river-mouse # ...which the other side types instead of the link
 hither inbox                   # open your inbox; hand out its link
 hither to <inbox-link> scans/  # offer files to someone's inbox
 hither friends add sam <link>  # save an inbox under a name...
 hither sam scans/              # ...and offer files to it by name
 hither id                      # your stable identity (created on first use)
+hither id export               # the secret behind it, as 24 words, to move machines
 hither doctor                  # can this network do direct connections?
+hither upgrade                 # replace this binary with the newest release
 ```
 
 ## Install
@@ -75,9 +79,28 @@ can show the file list and refuse collisions), then downloads what is missing
 into a `.hither-partial-<hash>` directory next to the destination and moves
 the verified files into place.
 
-Links are the same ticket in a URL fragment, `https://host/#<ticket>`, so a
-future landing page never sees which share was opened. Use `--link-base` to
-print that form.
+Links are the same ticket in a URL fragment, `https://host/#<ticket>`, so
+the landing page never sees which share was opened. `hither://<ticket>` is
+the same ticket again, for the desktop app's URL scheme.
+
+### Spoken codes
+
+`hither scans/ --code` also prints four words such as
+`able-cactus-river-mouse`. The other side runs `hither able cactus river
+mouse` and gets the files. No server is involved: both sides derive the same
+keypair from the words, the sender runs a tiny second endpoint under that
+key that hands over the real ticket, and the receiver finds it through
+iroh's normal discovery. Four words are 44 bits; a code lives only while the
+sender's window is open. Two-word codes would need a PAKE and a rendezvous
+server, which is a possible later addition.
+
+### Moving your identity
+
+`hither id export` prints your secret as 24 words (or `--hex`), plus your
+inbox token. `hither id import <words> --token <hex>` on another machine
+makes it you, with the same inbox link. The words carry a checksum, so a
+mistyped word is caught rather than silently producing a different identity.
+Store the export like a password: anyone holding it can act as you.
 
 ### Inbox: when you are the one who wants the files
 

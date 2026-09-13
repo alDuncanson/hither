@@ -439,3 +439,58 @@ async fn inbox_rejects_a_wrong_token_without_an_event() {
     })
     .await;
 }
+
+// ------------------------------------------------------------------- codes
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_spoken_code_hands_over_the_ticket() {
+    with_timeout(async {
+        let src = tempfile::tempdir().unwrap();
+        let dst = tempfile::tempdir().unwrap();
+        let album = make_tree(src.path(), 256 * 1024);
+        let (stx, _) = collector();
+        let sender = Sender::start(
+            &[album],
+            SendOptions {
+                code: true,
+                ..local_send_options()
+            },
+            stx,
+        )
+        .await
+        .unwrap();
+        let code = sender.code().expect("a code was minted").clone();
+        let spoken = code.to_string();
+        assert_eq!(spoken.split('-').count(), 4, "{spoken}");
+
+        // The receiver knows only the words. In tests it also learns the
+        // meeting point's address, standing in for DNS discovery.
+        let parsed = hither_core::Code::parse(&spoken.replace('-', " ")).unwrap();
+        let net = NetOptions::local().knowing(sender.code_endpoint().unwrap().addr());
+        let payload = hither_core::code::redeem(&parsed, &net)
+            .await
+            .expect("code resolves");
+        let ticket = link::parse(&payload).expect("payload is the share ticket");
+        assert_eq!(ticket.hash(), sender.ticket().hash());
+
+        let (rtx, _) = collector();
+        receive(
+            ticket,
+            ReceiveOptions {
+                out_dir: dst.path().to_path_buf(),
+                net: NetOptions::local(),
+            },
+            rtx,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert_same_tree(src.path(), dst.path());
+
+        // A wrong code is a different endpoint that nobody runs.
+        let wrong = hither_core::Code::parse("abandon abandon abandon abandon").unwrap();
+        assert_ne!(wrong.endpoint_id(), parsed.endpoint_id());
+        sender.shutdown().await.unwrap();
+    })
+    .await;
+}

@@ -450,6 +450,7 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
         if let Event::Ready {
             ticket,
             link,
+            code,
             addrs,
         } = &ev
         {
@@ -471,6 +472,13 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
                 out.push_str(&format!(
                     "  {}\n\n",
                     style(format!("hither {ticket}")).green().bold()
+                ));
+            }
+            if let Some(code) = code {
+                out.push_str(&format!(
+                    "  {} {}\n\n",
+                    style("or say:").dim(),
+                    style(format!("hither {code}")).green().bold()
                 ));
             }
             if show_qr && let Some(code) = qr(&target) {

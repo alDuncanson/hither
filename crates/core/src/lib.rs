@@ -10,6 +10,8 @@
 //!   writes the files into a directory. Interrupted downloads resume.
 //! - [`Inbox::open`] listens under a persistent [`Identity`] for offers, and
 //!   [`send_to`] makes one. See [`inbox`] for the protocol.
+//! - [`Code`] turns a ticket into four spoken words and back, without a
+//!   server (see [`code`]).
 //! - [`diagnose`] explains what this network allows.
 //!
 //! Module map: [`net`] builds endpoints; [`events`] is the contract with
@@ -18,6 +20,7 @@
 //! Tickets are standard iroh-blobs collection tickets, so `sendme receive`
 //! can read them too.
 
+pub mod code;
 pub mod doctor;
 pub mod events;
 pub mod friends;
@@ -31,6 +34,7 @@ pub mod send;
 mod throttle;
 pub mod words;
 
+pub use code::Code;
 pub use doctor::{DoctorOptions, DoctorReport, Verdict, diagnose};
 pub use events::{Event, EventReceiver, EventSender, FileEntry, PathKind, channel};
 pub use friends::Friends;

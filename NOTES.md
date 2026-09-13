@@ -345,6 +345,25 @@ plus `brew install --cask kap`, never the App Store. The same works for us:
   If a command ever ignores Ctrl-C again, look for who still holds an
   `EventSender`.
 
+## Done 2026-09-13 (evening), alpha.5
+
+- `hither id export` / `import`: 24 words (BIP-39 list, MIT) with a BLAKE3
+  checksum byte, or 64 hex; inbox token travels with `--token`; `--force`
+  to replace a different identity.
+- `hither upgrade`: re-runs the published installer into the binary's own
+  folder.
+- Spoken codes, serverless: `--code` mints four words; `Code::secret_key`
+  derives a keypair from them (`blake3::derive_key`, context
+  "hither spoken code v0"); `CodeServer` is a second endpoint under that key
+  on ALPN `hither/code/0` handing out the ticket; `code::redeem` dials the id
+  through discovery with retries. Verified live over n0 DNS + relay in 5 s.
+  Inbox codes not yet (`hither <words> <files>`).
+- `hither://<ticket>` parses (for the app's URL scheme); the landing page has
+  an "open in the hither app" link that only works once an app registers
+  the scheme.
+- `NetOptions.static_peers` (`.knowing(addr)`) stands in for discovery in
+  tests.
+
 ## Next steps, in order
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).

@@ -8,7 +8,9 @@
 use std::{net::SocketAddr, time::Duration};
 
 use anyhow::{Context, Result};
-use iroh::{Endpoint, RelayMode, SecretKey, endpoint::presets};
+use iroh::{
+    Endpoint, EndpointAddr, RelayMode, SecretKey, address_lookup::MemoryLookup, endpoint::presets,
+};
 
 /// How long to wait for the endpoint to learn its relay address before
 /// carrying on with whatever addresses it already has.
@@ -28,6 +30,9 @@ pub struct NetOptions {
     /// `127.0.0.1:0` so two endpoints in one process can reach each other
     /// even on machines where UDP to the LAN address is blocked.
     pub bind: Option<SocketAddr>,
+    /// Addresses known up front, consulted like a discovery service. Tests
+    /// use this instead of DNS; real use leaves it empty.
+    pub static_peers: Vec<EndpointAddr>,
 }
 
 impl Default for NetOptions {
@@ -37,6 +42,7 @@ impl Default for NetOptions {
             secret_key: None,
             discovery: true,
             bind: None,
+            static_peers: Vec::new(),
         }
     }
 }
@@ -49,7 +55,14 @@ impl NetOptions {
             secret_key: None,
             discovery: false,
             bind: Some(([127, 0, 0, 1], 0).into()),
+            static_peers: Vec::new(),
         }
+    }
+
+    /// Tell this endpoint where `addr` lives without any lookup service.
+    pub fn knowing(mut self, addr: EndpointAddr) -> Self {
+        self.static_peers.push(addr);
+        self
     }
 
     pub fn with_secret_key(mut self, key: SecretKey) -> Self {
@@ -79,6 +92,13 @@ pub async fn endpoint(opts: &NetOptions, alpns: Vec<Vec<u8>>) -> Result<Endpoint
         builder = builder
             .bind_addr(addr)
             .with_context(|| format!("cannot bind to {addr}"))?;
+    }
+    if !opts.static_peers.is_empty() {
+        let lookup = MemoryLookup::new();
+        for peer in &opts.static_peers {
+            lookup.add_endpoint_info(peer.clone());
+        }
+        builder = builder.address_lookup(lookup);
     }
     builder.bind().await.context("could not start networking")
 }

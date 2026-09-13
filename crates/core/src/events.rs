@@ -78,6 +78,8 @@ pub enum Event {
     Ready {
         ticket: String,
         link: Option<String>,
+        /// Four words that stand in for the ticket, when `--code` was used.
+        code: Option<String>,
         addrs: Vec<String>,
     },
     /// A peer opened a connection.

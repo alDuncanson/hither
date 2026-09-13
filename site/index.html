@@ -70,6 +70,7 @@
   .cmd.big { margin-top: 26px; padding: 14px 12px 14px 16px; }
   .cmd.big code { font-size: 15px; white-space: pre-wrap; word-break: break-all; }
   .alt { margin-top: 14px; color: var(--ink-soft); font-size: 15px; }
+  .app-open { white-space: nowrap; }
   .alt code { font-family: var(--mono); font-size: 13px; background: var(--code-bg); padding: 2px 6px; border-radius: 3px; word-break: break-all; }
   button.copy.small { padding: 4px 8px; font-size: 12px; vertical-align: middle; }
   .note { margin-top: 28px; padding: 14px 16px; border-left: 3px solid var(--accent); color: var(--ink-soft); font-size: 16px; }
@@ -94,7 +95,7 @@
     <h1>Someone is sending you files.</h1>
     <p class="lede">One command, run in the folder where you want them. It installs hither if you don't have it yet, then brings the files hither, checked byte for byte as they arrive.</p>
     <div class="cmd big"><code id="run-cmd">curl -fsSL https://alduncanson.github.io/hither/run.sh | sh -s -- <span class="t"></span></code><button class="copy" data-copy="run-cmd">Copy</button></div>
-    <p class="alt">Already have hither? Just run <code id="get-cmd">hither <span class="t"></span></code> <button class="copy small" data-copy="get-cmd">Copy</button></p>
+    <p class="alt">Already have hither? Just run <code id="get-cmd">hither <span class="t"></span></code> <button class="copy small" data-copy="get-cmd">Copy</button> <span class="app-open">or <a class="app-link" href="#">open in the hither app</a></span></p>
     <p class="note">The sender's window has to stay open until you have everything. If the download stops, run the same command again and it picks up where it left off.</p>
   </section>
 
@@ -103,7 +104,7 @@
     <h1>Someone gave you their inbox.</h1>
     <p class="lede">Offer them files from your own computer. Replace <em>photos/</em> with the files or folders you want to send; they see what you're offering and accept before anything moves.</p>
     <div class="cmd big"><code id="run-to-cmd">curl -fsSL https://alduncanson.github.io/hither/run.sh | sh -s -- to <span class="t"></span> <span class="ph">photos/</span></code><button class="copy" data-copy="run-to-cmd">Copy</button></div>
-    <p class="alt">Already have hither? Just run <code id="to-cmd">hither to <span class="t"></span> <span class="ph">photos/</span></code> <button class="copy small" data-copy="to-cmd">Copy</button></p>
+    <p class="alt">Already have hither? Just run <code id="to-cmd">hither to <span class="t"></span> <span class="ph">photos/</span></code> <button class="copy small" data-copy="to-cmd">Copy</button> <span class="app-open">or <a class="app-link" href="#">open in the hither app</a></span></p>
     <p class="note">Keep the window open until it says they have everything. Add <code>--as "Your name"</code> so they know who it's from.</p>
   </section>
 
@@ -172,6 +173,9 @@
       show('bad'); document.title = 'hither'; return;
     }
     document.querySelectorAll('.t').forEach(function (el) { el.textContent = raw; });
+    // The desktop app registers the hither:// scheme; without it this link
+    // just does nothing in most browsers.
+    document.querySelectorAll('.app-link').forEach(function (a) { a.href = 'hither://' + raw; });
     echo.textContent = 'ticket: ' + raw;
     echo.hidden = false;
   }

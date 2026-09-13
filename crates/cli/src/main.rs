@@ -3,6 +3,8 @@
 //!     hither scans/                    # share a folder
 //!     hither a.jpg b.tiff              # share a few files
 //!     hither <ticket or link>          # receive
+//!     hither scans/ --code             # also print four words to say aloud
+//!     hither able-cactus-river-mouse    # receive by code
 //!     hither inbox                     # open your inbox and print its link
 //!     hither to <inbox link> scans/    # offer files to someone's inbox
 //!     hither friends add sam <link>    # save an inbox under a name
@@ -19,7 +21,7 @@ use std::{collections::BTreeSet, path::PathBuf, str::FromStr, time::Duration};
 use anyhow::{Context, Result, bail};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use hither_core::{
-    AcceptPolicy, CancellationToken, Cancelled, DoctorOptions, EndpointId, Friends, Identity,
+    AcceptPolicy, CancellationToken, Cancelled, Code, DoctorOptions, EndpointId, Friends, Identity,
     Inbox, InboxOptions, NetOptions, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind,
     friends,
     link::{self, Link},
@@ -175,6 +177,11 @@ struct SendFlags {
     #[arg(long)]
     qr: bool,
 
+    /// Also mint four words the other side can type instead of the link:
+    /// `hither able-cactus-river-mouse`. Works while this command runs.
+    #[arg(long)]
+    code: bool,
+
     /// Base of the printed link, <URL>#<ticket>. Pass an empty string to
     /// print only the ticket.
     #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL", default_value = DEFAULT_LINK_BASE)]
@@ -328,6 +335,13 @@ fn decide(cli: Cli) -> Result<Action> {
             // link followed by paths means offer.
             let first = &cli.items[0];
             let first_is_path = std::path::Path::new(first).exists();
+            // Four words, as one dashed token or four arguments, none a path.
+            let joined = cli.items.join(" ");
+            if !cli.items.iter().any(|i| std::path::Path::new(i).exists())
+                && Code::looks_like(&joined)
+            {
+                return Ok(Action::Get(joined, cli.get, cli.common));
+            }
             // `hither sam photos/`: a saved friend's name followed by paths.
             if !first_is_path && cli.items.len() >= 2 && friends::is_friend(first) {
                 return Ok(Action::To(
@@ -506,6 +520,7 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
             TicketKind::Full
         },
         link_base: link_base(&flags.link_base),
+        code: flags.code,
         ..SendOptions::default()
     };
     let sender = match Sender::start(&paths, opts, tx.clone()).await {
@@ -526,7 +541,18 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
 }
 
 async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
-    let ticket = link::parse(&link)?;
+    let ticket = if let Ok(code) = Code::parse(&link) {
+        eprintln!("{}", console::style(format!("Looking up {code}…")).dim());
+        let payload = hither_core::code::redeem(&code, &net(&common, None)).await?;
+        match link::parse_any(&payload)? {
+            Link::Share(t) => t,
+            Link::Inbox(_) => {
+                bail!("that code belongs to an inbox; inbox codes are not supported yet")
+            }
+        }
+    } else {
+        link::parse(&link)?
+    };
     let out_dir = flags.out.unwrap_or_else(|| PathBuf::from("."));
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_get(rx));

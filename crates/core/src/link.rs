@@ -21,27 +21,17 @@ pub fn to_link(base: &str, ticket: &BlobTicket) -> Result<String> {
     Ok(url.to_string())
 }
 
-/// Parse a bare ticket or a link into a ticket.
+/// Parse a bare ticket or a link into a share ticket. Inbox links are a
+/// clear error rather than a parse failure.
 pub fn parse(input: &str) -> Result<BlobTicket> {
-    let input = input.trim();
-    if let Ok(ticket) = BlobTicket::from_str(input) {
-        return Ok(ticket);
-    }
-    if let Ok(url) = Url::parse(input) {
-        if let Some(fragment) = url.fragment()
-            && let Ok(ticket) = BlobTicket::from_str(fragment)
-        {
-            return Ok(ticket);
+    match parse_any(input)? {
+        Link::Share(t) => Ok(t),
+        Link::Inbox(_) => {
+            bail!(
+                "that is an inbox link, not a share. Offer files to it with `hither to <link> <files>`"
+            )
         }
-        // Also accept `https://host/<ticket>` in case a link was rewritten.
-        if let Some(last) = url.path_segments().and_then(|mut s| s.next_back())
-            && let Ok(ticket) = BlobTicket::from_str(last)
-        {
-            return Ok(ticket);
-        }
-        bail!("that link does not contain a share ticket");
     }
-    bail!("not a share ticket or link");
 }
 
 /// True if `input` is plausibly a ticket or link rather than a file path.
@@ -105,6 +95,18 @@ fn candidate_strings(input: &str) -> Vec<String> {
         if let Some(last) = url.path_segments().and_then(|mut s| s.next_back()) {
             out.push(last.to_string());
         }
+        // `hither://<ticket>` puts the ticket where a host would go, and
+        // `hither:<ticket>` puts it in the path. Both come from the app's
+        // URL scheme.
+        if let Some(host) = url.host_str() {
+            out.push(host.to_string());
+        }
+        out.push(url.path().trim_start_matches('/').to_string());
     }
     out
+}
+
+/// The app's URL scheme form of a ticket, for hand-off from a web page.
+pub fn to_app_url(ticket: &str) -> String {
+    format!("hither://{ticket}")
 }

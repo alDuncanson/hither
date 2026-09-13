@@ -31,6 +31,7 @@ use tokio::sync::mpsc;
 use tracing::debug;
 
 use crate::{
+    code::{Code, CodeServer},
     events::{Event, EventSender, FileEntry, emit},
     link, net,
     net::NetOptions,
@@ -60,6 +61,8 @@ pub struct SendOptions {
     pub link_base: Option<String>,
     /// How many files to hash concurrently.
     pub import_parallelism: usize,
+    /// Also mint a four-word spoken code (see [`crate::code`]).
+    pub code: bool,
 }
 
 impl Default for SendOptions {
@@ -71,6 +74,7 @@ impl Default for SendOptions {
             import_parallelism: std::thread::available_parallelism()
                 .map(|n| n.get())
                 .unwrap_or(4),
+            code: false,
         }
     }
 }
@@ -84,6 +88,8 @@ pub struct Sender {
     ticket: BlobTicket,
     link: Option<String>,
     files: Vec<FileEntry>,
+    /// The spoken code and its meeting point, when asked for.
+    code: Option<(Code, CodeServer)>,
     /// Keeps the collection alive in the store for as long as we serve it.
     _tag: TempTag,
     /// Removed on drop. The store holds hash trees only; files stay in place.
@@ -172,11 +178,21 @@ impl Sender {
             Some(base) => Some(link::to_link(base, &ticket)?),
             None => None,
         };
+        // 4. Optionally, a spoken code: a second endpoint under the code's
+        //    key that hands out the ticket.
+        let code = if opts.code {
+            let code = Code::generate();
+            let server = CodeServer::start(&code, ticket.to_string(), &opts.net).await?;
+            Some((code, server))
+        } else {
+            None
+        };
         emit(
             &events,
             Event::Ready {
                 ticket: ticket.to_string(),
                 link: link.clone(),
+                code: code.as_ref().map(|(c, _)| c.to_string()),
                 addrs,
             },
         )
@@ -188,10 +204,22 @@ impl Sender {
             ticket,
             link,
             files,
+            code,
             _tag: tag,
             dir,
             _events_task: events_task,
         })
+    }
+
+    /// The spoken code, if one was minted.
+    pub fn code(&self) -> Option<&Code> {
+        self.code.as_ref().map(|(c, _)| c)
+    }
+
+    /// The meeting point's endpoint, if a code was minted. Tests use its
+    /// address in place of discovery.
+    pub fn code_endpoint(&self) -> Option<&Endpoint> {
+        self.code.as_ref().map(|(_, s)| s.endpoint())
     }
 
     pub fn ticket(&self) -> &BlobTicket {
@@ -222,11 +250,15 @@ impl Sender {
             router,
             store,
             dir,
+            code,
             _tag,
             _events_task,
             ..
         } = self;
         drop(_tag);
+        if let Some((_, server)) = code {
+            server.shutdown().await;
+        }
         let _ = tokio::time::timeout(Duration::from_secs(3), router.shutdown()).await;
         store.shutdown().await.ok();
         dir.close().ok();
