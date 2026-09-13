@@ -105,7 +105,7 @@ the keeper node that removes the both-online requirement later.
 ## Repository layout
 
 ```
-crates/core   hither-core   UI-agnostic library: Sender::start, receive, Inbox, Event stream
+crates/core   hither-core   UI-agnostic library: net, Sender::start, receive, Inbox, Event stream, e2e tests
 crates/cli    hither-cli    the `hither` binary: clap + indicatif over the core
 site/         the landing page served at alduncanson.github.io/hither
 install.sh    the curl | sh installer
@@ -126,9 +126,15 @@ installed toolchain.
 
 ```sh
 cargo build
-cargo test
+cargo test            # unit tests plus end-to-end transfers over loopback
+cargo clippy --all-targets -- -D warnings
 cargo run -- some/folder
 ```
+
+The end-to-end tests in `crates/core/tests/e2e.rs` start real endpoints on
+`127.0.0.1` with relays and discovery off, so they need no network and pass
+on machines whose LAN UDP is blocked. `rust-toolchain.toml` lists `clippy`
+and `rustfmt`, so rustup installs them on first use.
 
 Set `RUST_LOG` or pass `-v`/`-vv` for logs. `--relay disabled` forces a
 direct-only connection, useful on a LAN.

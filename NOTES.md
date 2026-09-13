@@ -289,6 +289,22 @@ Recommendation: 1 now (done), 2 for the alpha if spoken codes matter before
 the VPS exists, 3 when the VPS is up; 2 and 3 can share the same CLI surface
 (`--code`, `hither <words>`).
 
+## Code hygiene (done 2026-09-13, before more features)
+
+- `crates/core/tests/e2e.rs`: six end-to-end tests over loopback (roundtrip,
+  refuse-overwrite, cancel-then-resume, inbox accept-all, inbox ask yes/no,
+  wrong token). `NetOptions::local()` is what makes them run anywhere.
+- `net.rs` is the single place endpoints are configured; every option struct
+  carries a `NetOptions`.
+- `receive.rs` and `inbox.rs` are split into named phases; each file starts
+  with a module comment that lists them. Section banners (`// ---- name ----`)
+  mark the parts of the longer files; rustdoc (`///`, `//!`) carries the
+  explanations. That is normal Rust practice: doc comments are the primary
+  tool, banners are optional and only worth it in files over a few hundred
+  lines.
+- clippy is part of the toolchain file and CI fails on warnings.
+- `hither doctor` now says to click Allow if macOS showed the dialog.
+
 ## Lessons that cost real time
 
 - **Ctrl-C hang in `hither inbox` (fixed in 0.1.0-alpha.3).** The UI task held
