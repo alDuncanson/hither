@@ -347,10 +347,10 @@ The order is a dependency order, so the numbers mean something.
    deployed to GitHub Pages, later alduncanson.com. Relay deferred while the
    alpha has one user. Distribution is `curl | sh` from GitHub releases, not
    app stores.
-5. **Menu bar app.** Tauri over the same core: drop zone, link on clipboard,
-   inbox offers as notifications, registers `hither://`. Signed and
-   notarized with Al's existing Developer ID. Identity backup, `upgrade`
-   and serverless spoken codes landed ahead of it.
+5. **Menu bar app.** Scaffolded in `apps/desktop`: Tauri over the same core
+   with a drop zone, link on clipboard, inbox offers as notifications,
+   friends, recovery words, and the `hither://` scheme. Next: signing and
+   notarization with Al's Developer ID, a Homebrew tap, the updater.
 6. **Mobile.** uniffi bindings; receive first, send second.
 7. **Keeper.** The inbox node running on the VPS beside the relay, with an
    HTTPS upload door for browsers and locked-down networks.

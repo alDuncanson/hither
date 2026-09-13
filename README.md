@@ -125,11 +125,32 @@ Both sides must be online during the transfer; the sender's command exits
 when your inbox confirms it has everything. See `docs/architecture.md` for
 the keeper node that removes the both-online requirement later.
 
+## Desktop app (alpha)
+
+`apps/desktop` is a Tauri v2 menu bar app over the same core: drop files or
+folders on it and the link is on your clipboard; paste a link, ticket or
+four words to receive; open your inbox and approve offers as notifications
+arrive; keep friends; show recovery words. It registers the `hither://`
+scheme, so the landing page's "open in the hither app" link works once the
+app is installed. The front end is plain HTML and JavaScript with no build
+step; the Rust side is one file of commands that call `hither-core`.
+
+```sh
+cargo install tauri-cli --version "^2" --locked
+cd apps/desktop/src-tauri && cargo tauri dev        # run it
+cd apps/desktop/src-tauri && cargo tauri build      # hither.app and a .dmg
+```
+
+It is a separate Cargo project on purpose, so the workspace build stays lean
+and Linux CI needs no WebKit. Signing and notarization are wired through
+Tauri's usual environment variables once a Developer ID is available.
+
 ## Repository layout
 
 ```
 crates/core   hither-core   UI-agnostic library: net, Sender::start, receive, Inbox, Event stream, e2e tests
 crates/cli    hither-cli    the `hither` binary: clap + indicatif over the core
+apps/desktop  hither-desktop  Tauri menu bar app (own Cargo project); ui/ is the front end
 site/         the landing page served at alduncanson.github.io/hither
 install.sh    the curl | sh installer
 run.sh        install-if-missing, then run: the one-command form the landing page shows
