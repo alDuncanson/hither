@@ -239,17 +239,26 @@ phases and open decisions are in `docs/architecture.md` (with diagrams).
    works. Not reproduced under debug logging. Check on the personal machine
    before suspecting the code; if it persists there, capture
    `RUST_LOG=iroh=debug` on both sides.
-5. Static landing page that reads the fragment and offers "open in app" or
-   "get the app". Nothing about the share ever reaches the host.
+5. ~~Static landing page~~ Done 2026-09-13: `site/index.html`, deployed by
+   `.github/workflows/pages.yml` to https://alduncanson.github.io/hither/;
+   printed links point there by default (`--link-base ""` for ticket only).
+   Later: serve it from alduncanson.com and change `DEFAULT_LINK_BASE`. The
+   "open in app" hand-off waits for an app that registers a URL scheme.
 6. Tauri menu bar app over the same core (drag files in, get a link; inbox
    offers appear as notifications). Then uniffi for mobile.
 7. ~~Enable iroh's `platform-verifier` feature; add `hither doctor`; add the
    "via relay" notice.~~ Done 2026-09-13. Doctor uses iroh's
    `unstable-net-report` feature; all of that API lives in `doctor.rs`.
-8. Stand up a self-hosted `iroh-relay` on a VPS and point the CLI at it
-   (`--relay URL` already exists); measure relayed throughput.
-9. Housekeeping: CI (fmt, test, build matrix), clippy, signed and notarized
-   release builds so macOS never shows the firewall prompt.
+8. Self-hosted `iroh-relay`: **deferred by Al** while the alpha has one user.
+   Still wanted before anyone on a managed network relies on it.
+   (`--relay URL` already exists; measure relayed throughput when it lands.)
+9. ~~CI, release builds~~ Done 2026-09-13: `ci.yml` (fmt/build/test on
+   macOS + Linux), `release.yml` (tag `v*` builds 4 targets, publishes a
+   GitHub release with sha256 files), `install.sh` (curl | sh, checksum
+   verified, installs to ~/.local/bin). **Distribution decision (Al):** no app
+   stores; curl-installable binaries for people comfortable with a terminal,
+   which is the target audience to start. Still open: clippy in CI, and
+   signing/notarization for macOS so the firewall prompt goes away.
 
 ## Odds and ends
 

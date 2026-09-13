@@ -17,6 +17,22 @@ hither id                      # your stable identity (created on first use)
 hither doctor                  # can this network do direct connections?
 ```
 
+## Install
+
+```sh
+curl -fsSL https://alduncanson.github.io/hither/install.sh | sh
+```
+
+That fetches the latest release for your machine from GitHub, checks its
+SHA-256, and puts one binary in `~/.local/bin`. `HITHER_INSTALL_DIR` changes
+the folder, `HITHER_VERSION=v0.1.0` pins a version. macOS (Apple silicon and
+Intel) and Linux (x86_64 and arm64) are built; Windows users can build from
+source with `cargo install --path crates/cli` for now.
+
+Every link hither prints opens https://alduncanson.github.io/hither/, which
+reads the ticket from the URL fragment and shows the two commands above.
+The page is static and the fragment never reaches the server.
+
 Built on [iroh](https://iroh.computer) 1.x and iroh-blobs. Tickets are
 standard iroh-blobs collection tickets, so `sendme receive <ticket>` reads
 them too.
@@ -73,20 +89,23 @@ Both sides must be online during the transfer; the sender's command exits
 when your inbox confirms it has everything. See `docs/architecture.md` for
 the keeper node that removes the both-online requirement later.
 
-## Layout
+## Repository layout
 
 ```
-crates/core   hither-core   UI-agnostic library: Sender::start, receive, Event stream
+crates/core   hither-core   UI-agnostic library: Sender::start, receive, Inbox, Event stream
 crates/cli    hither-cli    the `hither` binary: clap + indicatif over the core
+site/         the landing page served at alduncanson.github.io/hither
+install.sh    the curl | sh installer
 docs/         architecture.md (design, diagrams), landscape.md (transports, prior art)
 NOTES.md      where things stand and what is next
 ```
 
-`hither-core` has no terminal or UI dependencies. Every front end consumes
-the same serialisable `Event` stream, which is the seam for the desktop,
-mobile and web clients.
-
 ## Development
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org).
+CI runs fmt, build and tests on macOS and Linux; pushing a `v*` tag builds
+release binaries for four targets and publishes them; changes under `site/`
+or to `install.sh` redeploy the landing page.
 
 Rust 1.91 or newer is required by iroh 1.x. `rust-toolchain.toml` pins an
 installed toolchain.
@@ -144,3 +163,7 @@ Signed and notarized release builds will not trigger the prompt.
 **n0's public relays are slow (about 1 MB/s).** They are rate limited and
 meant for development. A production deployment runs its own relay or uses a
 paid n0 plan; direct connections are not affected.
+
+## License
+
+MIT or Apache-2.0, at your option.

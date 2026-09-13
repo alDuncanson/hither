@@ -265,8 +265,8 @@ flowchart TD
     open([friend opens link]) --> has{app installed?<br/>probe custom URL scheme}
     has -- yes --> app["open in app<br/>share link → receive<br/>inbox link → drop zone"]
     has -- no --> plat{platform?}
-    plat -- desktop --> dl["download app (signed, notarized)<br/>reopen link after install"]
-    plat -- mobile --> storeb["App Store / Play<br/>link handed to app via universal link"]
+    plat -- desktop --> dl["curl | sh installs the binary<br/>then run the shown command"]
+    plat -- mobile --> storeb["later: mobile app<br/>link handed to app via universal link"]
     plat -- "browser only / locked down" --> gw["later: web receive via relay gateway<br/>or HTTPS upload into the keeper"]
     dl --> app
     storeb --> app
@@ -342,8 +342,11 @@ The order is a dependency order, so the numbers mean something.
 3. **Inbox.** Done. Token, announce protocol on `hither/inbox/0`, accept
    prompt with Ask / AcceptAll / AcceptFrom policies, `hither inbox` and
    `hither to <inbox-link> <paths>`; the pull reuses the inbox's endpoint.
-4. **Landing page and owned relay.** Static page that hands off to the app;
-   one `iroh-relay` on a VPS; measure relayed throughput.
+4. **Landing page and owned relay.** Page done: static, reads the ticket
+   from the fragment, shows install and run steps for share and inbox links;
+   deployed to GitHub Pages, later alduncanson.com. Relay deferred while the
+   alpha has one user. Distribution is `curl | sh` from GitHub releases, not
+   app stores.
 5. **Menu bar app.** Tauri over the same core: drop zone, link on clipboard,
    inbox offers as notifications. Signed and notarized.
 6. **Mobile.** uniffi bindings; receive first, send second.
