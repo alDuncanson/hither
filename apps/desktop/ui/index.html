@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hither</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">hither</div>
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-tab="share" role="tab">Share</button>
+    <button class="tab" data-tab="receive" role="tab">Receive</button>
+    <button class="tab" data-tab="inbox" role="tab">Inbox</button>
+    <button class="tab" data-tab="settings" role="tab" aria-label="Settings">⚙</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------------ share -->
+  <section id="tab-share" class="panel is-active">
+    <div id="dropzone" class="dropzone" tabindex="0">
+      <div class="dz-glyph">⤓</div>
+      <div class="dz-title">Drop files or folders here</div>
+      <div class="dz-sub">or <button id="pick-files" class="linkish">choose files</button> · <button id="pick-folder" class="linkish">a folder</button></div>
+      <label class="check"><input type="checkbox" id="opt-code"> also make a four-word code to say aloud</label>
+    </div>
+    <div id="shares" class="cards"></div>
+  </section>
+
+  <!-- ---------------------------------------------------------- receive -->
+  <section id="tab-receive" class="panel">
+    <label class="field">
+      <span>Link, ticket, or four words</span>
+      <input id="recv-input" type="text" placeholder="https://… or able cactus river mouse" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="row">
+      <label class="field grow">
+        <span>Save into</span>
+        <input id="recv-dir" type="text" spellcheck="false">
+      </label>
+      <button id="recv-pick-dir" class="secondary">Choose…</button>
+    </div>
+    <button id="recv-start" class="primary">Bring it hither</button>
+    <div id="recv-status" class="status"></div>
+  </section>
+
+  <!-- ------------------------------------------------------------ inbox -->
+  <section id="tab-inbox" class="panel">
+    <div class="card" id="inbox-card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Your inbox</div>
+          <div class="card-sub" id="inbox-state">Closed. Open it to hand out a link people can drop files into.</div>
+        </div>
+        <button id="inbox-toggle" class="primary">Open inbox</button>
+      </div>
+      <div id="inbox-open" hidden>
+        <div class="mono link" id="inbox-link"></div>
+        <div class="row gap">
+          <button class="secondary" id="inbox-copy">Copy link</button>
+          <label class="check"><input type="checkbox" id="inbox-accept-all"> accept without asking</label>
+        </div>
+        <div class="card-sub">Saving into <span id="inbox-dir" class="mono"></span></div>
+      </div>
+    </div>
+    <div id="offers" class="cards"></div>
+
+    <div class="card">
+      <div class="card-title">Friends</div>
+      <div class="card-sub">Save someone's inbox link once, then send to them by name.</div>
+      <div id="friends" class="list"></div>
+      <div class="row gap">
+        <input id="friend-name" type="text" placeholder="name" spellcheck="false" class="grow">
+        <input id="friend-link" type="text" placeholder="their inbox link" spellcheck="false" class="grow2">
+        <button id="friend-add" class="secondary">Save</button>
+      </div>
+      <div id="to-status" class="status"></div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- settings -->
+  <section id="tab-settings" class="panel">
+    <div class="card">
+      <div class="card-title">Identity</div>
+      <div class="card-sub">Your endpoint id. Inbox links and friends are tied to it.</div>
+      <div class="mono link" id="identity-id">…</div>
+      <div class="row gap">
+        <button id="identity-export" class="secondary">Show recovery words</button>
+        <button id="identity-copy" class="secondary" hidden>Copy words</button>
+      </div>
+      <div id="identity-words" class="words" hidden></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Network</div>
+      <div class="card-sub">Can this network make direct connections?</div>
+      <button id="doctor-run" class="secondary">Check</button>
+      <div id="doctor-out" class="status"></div>
+    </div>
+    <div class="card muted">
+      <div class="card-sub">hither is free software (MIT or Apache-2.0). Links point at alduncanson.github.io/hither. Closing this window keeps shares and the inbox running; quit from the menu bar icon.</div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

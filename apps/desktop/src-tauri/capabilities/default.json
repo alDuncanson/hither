@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the hither window may do.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "clipboard-manager:allow-write-text",
+    "notification:default",
+    "deep-link:default",
+    "opener:default",
+    "dialog:default"
+  ]
+}

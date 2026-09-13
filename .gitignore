@@ -2,3 +2,5 @@
 **/*.rs.bk
 .DS_Store
 .hither-partial-*
+/apps/desktop/src-tauri/target
+/apps/desktop/src-tauri/gen
