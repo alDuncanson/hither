@@ -416,12 +416,29 @@ fn identity_key(use_identity: bool) -> Result<Option<hither_core::SecretKey>> {
     })
 }
 
+/// After the first Ctrl-C has been handled gracefully, a second one must
+/// always end the process, whatever a shutdown is waiting on.
+fn exit_on_next_ctrl_c() {
+    tokio::spawn(async {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            eprintln!();
+            std::process::exit(130);
+        }
+    });
+}
+
+/// Wait for a renderer to drain, but never hang the process on it.
+async fn finish_ui(ui: tokio::task::JoinHandle<()>) {
+    let _ = tokio::time::timeout(Duration::from_secs(2), ui).await;
+}
+
 fn ctrl_c_token() -> CancellationToken {
     let cancel = CancellationToken::new();
     let c = cancel.clone();
     tokio::spawn(async move {
         if tokio::signal::ctrl_c().await.is_ok() {
             c.cancel();
+            exit_on_next_ctrl_c();
         }
     });
     cancel
@@ -451,9 +468,10 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
         }
     };
     tokio::signal::ctrl_c().await?;
+    exit_on_next_ctrl_c();
     sender.shutdown().await?;
     drop(tx);
-    ui.await.ok();
+    finish_ui(ui).await;
     eprintln!("Stopped sharing.");
     Ok(0)
 }
@@ -536,9 +554,10 @@ async fn run_inbox(flags: InboxFlags, common: Common) -> Result<i32> {
         );
     }
     tokio::signal::ctrl_c().await?;
+    exit_on_next_ctrl_c();
     inbox.shutdown().await?;
     drop(tx);
-    ui.await.ok();
+    finish_ui(ui).await;
     eprintln!("Inbox closed.");
     Ok(0)
 }
@@ -555,7 +574,7 @@ async fn run_to(inbox: String, paths: Vec<PathBuf>, flags: ToFlags, common: Comm
         ..SendOptions::default()
     };
     let result = hither_core::send_to(&inbox, &paths, flags.label, opts, tx, cancel).await;
-    ui.await.ok();
+    finish_ui(ui).await;
     match result {
         Ok(_) => Ok(0),
         Err(e) if e.downcast_ref::<Cancelled>().is_some() => {

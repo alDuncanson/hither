@@ -289,6 +289,19 @@ Recommendation: 1 now (done), 2 for the alpha if spoken codes matter before
 the VPS exists, 3 when the VPS is up; 2 and 3 can share the same CLI surface
 (`--code`, `hither <words>`).
 
+## Lessons that cost real time
+
+- **Ctrl-C hang in `hither inbox` (fixed in 0.1.0-alpha.3).** The UI task held
+  a `Decider`, the `Decider` held the whole inbox state, and that state held
+  an event sender. After shutdown the main task waited for the UI, the UI
+  waited for the event channel to close, and the channel was held open by the
+  UI's own handle. Tokio had claimed the Ctrl-C handler, so further presses
+  did nothing. Rules now in the code: a UI may hold only what it needs to
+  answer (`Decider` holds just the pending-offer table); `finish_ui` never
+  waits more than two seconds for a renderer; a second Ctrl-C always exits.
+  If a command ever ignores Ctrl-C again, look for who still holds an
+  `EventSender`.
+
 ## Next steps, in order
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).

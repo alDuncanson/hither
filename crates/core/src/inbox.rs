@@ -244,7 +244,7 @@ impl Inbox {
                 dir,
                 policy: opts.policy.clone(),
                 events: events.clone(),
-                pending: Mutex::new(HashMap::new()),
+                pending: Arc::new(Mutex::new(HashMap::new())),
                 next_id: AtomicU64::new(1),
                 cancel: CancellationToken::new(),
             }),
@@ -297,7 +297,7 @@ impl Inbox {
     /// A handle for answering offers from another task (the UI).
     pub fn decider(&self) -> Decider {
         Decider {
-            inner: self.handler.inner.clone(),
+            pending: self.handler.inner.pending.clone(),
         }
     }
 
@@ -308,16 +308,20 @@ impl Inbox {
     }
 }
 
-/// Answers pending offers.
+/// Answers pending offers. Holds only the table of open questions, never the
+/// inbox itself, so a UI task keeping a `Decider` cannot keep the inbox (or
+/// its event channel) alive after shutdown.
 #[derive(Clone)]
 pub struct Decider {
-    inner: Arc<Inner>,
+    pending: Pending,
 }
+
+type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<bool>>>>;
 
 impl Decider {
     /// Resolve an offer. Returns false if it was no longer pending.
     pub fn decide(&self, id: u64, accept: bool) -> bool {
-        let tx = self.inner.pending.lock().unwrap().remove(&id);
+        let tx = self.pending.lock().unwrap().remove(&id);
         match tx {
             Some(tx) => tx.send(accept).is_ok(),
             None => false,
@@ -338,7 +342,7 @@ struct Inner {
     dir: PathBuf,
     policy: AcceptPolicy,
     events: EventSender,
-    pending: Mutex<HashMap<u64, oneshot::Sender<bool>>>,
+    pending: Pending,
     next_id: AtomicU64,
     cancel: CancellationToken,
 }
@@ -627,7 +631,10 @@ async fn announce_and_wait(
         },
     )
     .await;
-    match read_frame::<Reply>(&mut recv).await? {
+    let first = read_frame::<Reply>(&mut recv)
+        .await
+        .context("the inbox went away before deciding")?;
+    match first {
         Reply::Accepted => emit(events, Event::ToAccepted).await,
         Reply::Declined { reason } => {
             emit(
@@ -644,7 +651,10 @@ async fn announce_and_wait(
         }
         other => bail!("unexpected reply from the inbox: {other:?}"),
     }
-    match read_frame::<Reply>(&mut recv).await? {
+    let last = read_frame::<Reply>(&mut recv)
+        .await
+        .context("the inbox went away before it had everything")?;
+    match last {
         Reply::Done { files, bytes } => {
             emit(events, Event::ToDone { files, bytes }).await;
             debug!("inbox confirmed {files} files, {bytes} bytes");
