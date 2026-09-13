@@ -135,6 +135,45 @@ send_to(inbox_link, paths, SendOptions, events).await?;   // Sender::start + ann
 New events: `InboxReady { link }`, `Offer { id, sender, files, bytes }`,
 `OfferAccepted { id }`, `OfferDeclined { id, reason }`, `OfferDone { id }`.
 
+## Corporate networks and UDP
+
+Found on the work Mac: Zscaler drops UDP, so QUIC direct paths are impossible
+there and only the relay (WebSocket over HTTPS, port 443) gets through. QUIC
+has no TCP mode, so this cannot be fixed on the client side, and we should
+never try to evade a corporate policy. The goal is a relay path good enough
+that users on such networks do not care. Options, roughly by value:
+
+1. **Own the relay.** `iroh-relay` on a small VPS. The ~1 MB/s we saw is
+   n0's free-tier rate limit, not a property of relaying; a self-hosted relay
+   runs at the box's uplink. n0 dedicated relays are USD 199/month/region.
+   This also serves browsers, which are relay-only regardless.
+2. **Co-locate the relay with the inbox/keeper node.** Corporate sender ->
+   WSS 443 -> relay -> node on the same box. Direct-to-server speed, no third
+   party. Makes the inbox the natural answer for managed machines.
+3. **Trust the OS root store.** iroh-relay verifies TLS with bundled webpki
+   roots by default; the `platform-verifier` cargo feature uses the system
+   store, which is what survives TLS inspection with a corporate CA. One-line
+   change; do it regardless.
+4. **Detect and say so.** iroh's net report can tell us UDP is blocked. A
+   `doctor` subcommand plus a one-line notice ("your network blocks direct
+   connections, transferring via relay") turns a mystery into an expected
+   mode. First cheap step.
+5. **HTTPS upload into the keeper as the last-resort path.** Resumable
+   (tus-style), works from any browser and any web-allowed network, no
+   install for the sender, still BLAKE3-verified because the keeper hashes
+   what lands. Reintroduces storage, but ours. Also sidesteps the
+   iroh-blobs-in-wasm blocker for browser senders. Invite-only.
+6. **TCP direct transport plugin** (`Endpoint::add_custom_transport`).
+   Buildable, low value: needs inbound TCP on one side, and zero-trust
+   proxies usually allow only 80/443 outbound.
+7. **IT allowlisting.** Only relevant if this becomes a sanctioned workplace
+   tool.
+
+Recommended: 1 + 2 + 3 as the strategy, 4 immediately, 5 later as the
+async/browser/corporate fallback. Background on the transports (TCP, UDP,
+QUIC, WebRTC, relays, PAKE) and how other tools handle this is in
+`docs/landscape.md`.
+
 ## Next steps, in order
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).
@@ -147,7 +186,11 @@ New events: `InboxReady { link }`, `Offer { id, sender, files, bytes }`,
    "get the app". Nothing about the share ever reaches the host.
 6. Tauri menu bar app over the same core (drag files in, get a link; inbox
    offers appear as notifications). Then uniffi for mobile.
-7. Housekeeping: CI (fmt, test, build matrix), clippy, signed and notarized
+7. Enable iroh's `platform-verifier` feature; add `NAME doctor` (net report:
+   UDP blocked? relay reachable? direct addrs) and the "via relay" notice.
+8. Stand up a self-hosted `iroh-relay` on a VPS and point the CLI at it
+   (`--relay URL` already exists); measure relayed throughput.
+9. Housekeeping: CI (fmt, test, build matrix), clippy, signed and notarized
    release builds so macOS never shows the firewall prompt.
 
 ## Odds and ends
