@@ -384,6 +384,15 @@ below needs the account's certificates and secrets, which live there.
    Receive, open the inbox and accept an offer from the CLI, `hither://`
    from the landing page opens the app.
 
+## Known upstream alert
+
+Dependabot flags `glib 0.18.5` (unsound iterator impl, fixed in 0.20) in
+`apps/desktop/src-tauri/Cargo.lock`. It reaches us through
+tauri -> tray-icon -> libappindicator -> gtk 0.18, a Linux-only path that
+never compiles into the macOS app, and no semver-compatible update exists
+until Tauri moves to gtk 0.20. Nothing to do on our side; re-check after the
+next Tauri minor.
+
 ## Lessons that cost real time
 
 - **Ctrl-C hang in `hither inbox` (fixed in 0.1.0-alpha.3).** The UI task held
