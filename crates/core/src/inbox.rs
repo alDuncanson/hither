@@ -182,6 +182,13 @@ pub fn load_or_create_token(rotate: bool) -> Result<[u8; 16]> {
             .map_err(|_| anyhow::anyhow!("{} has the wrong length", path.display()));
     }
     let token = random_token();
+    save_token(token)?;
+    Ok(token)
+}
+
+/// Write a token (for example one restored from another machine).
+pub fn save_token(token: [u8; 16]) -> Result<()> {
+    let path = token_path()?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
@@ -194,7 +201,7 @@ pub fn load_or_create_token(rotate: bool) -> Result<[u8; 16]> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
-    Ok(token)
+    Ok(())
 }
 
 /// Sixteen random bytes.

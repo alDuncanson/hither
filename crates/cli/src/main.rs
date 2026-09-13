@@ -8,7 +8,9 @@
 //!     hither friends add sam <link>    # save an inbox under a name
 //!     hither sam scans/                # offer files to a saved friend
 //!     hither id                        # your stable identity
+//!     hither id export                 # the secret behind it, to move machines
 //!     hither doctor                    # can this network do direct connections?
+//!     hither upgrade                   # replace this binary with the newest release
 
 mod ui;
 
@@ -104,12 +106,16 @@ enum Command {
     },
     /// Show (and on first use, create) your stable identity.
     Id {
+        #[command(subcommand)]
+        cmd: Option<IdCmd>,
         /// Print only the endpoint id.
         #[arg(long)]
         short: bool,
         #[command(flatten)]
         common: Common,
     },
+    /// Replace this binary with the newest release.
+    Upgrade,
     /// Check whether this network allows direct connections and can reach a relay.
     Doctor {
         /// Print the report as JSON.
@@ -117,6 +123,29 @@ enum Command {
         json: bool,
         #[command(flatten)]
         common: Common,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum IdCmd {
+    /// Print the secret behind your identity, to move it to another machine.
+    /// Anyone holding it can act as you: store it like a password.
+    Export {
+        /// Print 64 hex characters instead of 24 words.
+        #[arg(long)]
+        hex: bool,
+    },
+    /// Install a secret exported elsewhere as this machine's identity.
+    Import {
+        /// The 24 words or 64 hex characters from `hither id export`.
+        #[arg(required = true, value_name = "WORDS|HEX")]
+        secret: Vec<String>,
+        /// The inbox token printed by `export`, so old inbox links keep working.
+        #[arg(long, value_name = "HEX")]
+        token: Option<String>,
+        /// Replace a different identity already on this machine.
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -261,7 +290,8 @@ enum Action {
     Inbox(InboxFlags, Common),
     To(String, Vec<PathBuf>, ToFlags, Common),
     Friends(FriendsCmd),
-    Id(bool, Common),
+    Id(Option<IdCmd>, bool, Common),
+    Upgrade,
     Doctor(bool, Common),
 }
 
@@ -285,7 +315,8 @@ fn decide(cli: Cli) -> Result<Action> {
             common,
         }) => Action::To(inbox, paths, flags, common),
         Some(Command::Friends { cmd }) => Action::Friends(cmd),
-        Some(Command::Id { short, common }) => Action::Id(short, common),
+        Some(Command::Id { cmd, short, common }) => Action::Id(cmd, short, common),
+        Some(Command::Upgrade) => Action::Upgrade,
         Some(Command::Doctor { json, common }) => Action::Doctor(json, common),
         None => {
             if cli.items.is_empty() {
@@ -385,10 +416,19 @@ async fn main() {
             run_to(inbox, paths, flags, common).await
         }
         Action::Friends(cmd) => run_friends(cmd),
-        Action::Id(short, common) => {
+        Action::Id(cmd, short, common) => {
             init_tracing(common.verbose);
-            run_id(short)
+            match cmd {
+                None => run_id(short),
+                Some(IdCmd::Export { hex }) => run_id_export(hex),
+                Some(IdCmd::Import {
+                    secret,
+                    token,
+                    force,
+                }) => run_id_import(&secret.join(" "), token, force),
+            }
         }
+        Action::Upgrade => run_upgrade(),
         Action::Doctor(json, common) => {
             init_tracing(common.verbose);
             run_doctor(json, common).await
@@ -654,6 +694,97 @@ fn run_id(short: bool) -> Result<i32> {
             console::style("source").dim(),
             hither_core::identity::ENV_SECRET
         ),
+    }
+    Ok(0)
+}
+
+fn run_id_export(hex: bool) -> Result<i32> {
+    let id = Identity::load_default()?;
+    eprintln!(
+        "{}",
+        console::style(
+            "This is your private key. Anyone holding it can act as you. Store it like a password."
+        )
+        .yellow()
+    );
+    println!("{}", if hex { id.to_hex() } else { id.to_words() });
+    if let Ok(path) = hither_core::inbox::token_path()
+        && let Ok(token) = std::fs::read_to_string(&path)
+    {
+        eprintln!(
+            "{} {}",
+            console::style("inbox token (pass to import with --token):").dim(),
+            token.trim()
+        );
+    }
+    eprintln!(
+        "{} {}",
+        console::style("endpoint id").dim(),
+        id.endpoint_id()
+    );
+    Ok(0)
+}
+
+fn run_id_import(secret: &str, token: Option<String>, force: bool) -> Result<i32> {
+    let key = Identity::parse_secret(secret)?;
+    let path = hither_core::identity::default_path()?;
+    let id = Identity::import(&path, key, force)?;
+    println!(
+        "{:<12} {}",
+        console::style("endpoint id").dim(),
+        id.endpoint_id()
+    );
+    println!(
+        "{:<12} {}",
+        console::style("stored at").dim(),
+        path.display()
+    );
+    if let Some(token) = token {
+        let bytes = data_encoding::HEXLOWER
+            .decode(token.trim().as_bytes())
+            .context("the token is not valid hex")?;
+        let bytes: [u8; 16] = bytes
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("the token must be 32 hex characters"))?;
+        hither_core::inbox::save_token(bytes)?;
+        println!(
+            "{:<12} restored; existing inbox links keep working",
+            console::style("inbox token").dim()
+        );
+    }
+    Ok(0)
+}
+
+/// Re-run the published installer against the folder this binary lives in.
+fn run_upgrade() -> Result<i32> {
+    let exe = std::env::current_exe().context("cannot tell where hither is installed")?;
+    let dir = exe
+        .parent()
+        .context("cannot tell where hither is installed")?
+        .to_path_buf();
+    if std::fs::metadata(&dir)
+        .map(|m| m.permissions().readonly())
+        .unwrap_or(true)
+    {
+        bail!(
+            "{} is not writable. Re-run the installer with HITHER_INSTALL_DIR set to a folder you own",
+            dir.display()
+        );
+    }
+    eprintln!(
+        "{} {} in {}",
+        console::style("current").dim(),
+        env!("CARGO_PKG_VERSION"),
+        dir.display()
+    );
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("curl -fsSL https://alduncanson.github.io/hither/install.sh | sh")
+        .env("HITHER_INSTALL_DIR", &dir)
+        .status()
+        .context("could not run the installer")?;
+    if !status.success() {
+        bail!("the installer did not finish");
     }
     Ok(0)
 }

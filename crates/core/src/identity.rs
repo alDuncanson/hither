@@ -11,12 +11,20 @@
 //! identity` on macOS, `$XDG_DATA_HOME/hither/identity` elsewhere). The
 //! `HITHER_SECRET` environment variable overrides the file, which is handy
 //! for tests and servers.
+//!
+//! Export and import move that secret between machines. The secret *is* the
+//! identity: whoever holds it is you, so it is shown once, on request, and
+//! never written anywhere but the identity file. Two forms are accepted:
+//! the 64 hex characters, or 24 words (the 32 key bytes plus one checksum
+//! byte, eleven bits per word) for reading aloud or typing by hand.
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use data_encoding::HEXLOWER;
 use iroh::{EndpointId, SecretKey};
+
+use crate::words;
 
 /// Environment variable holding a hex secret key that overrides the file.
 pub const ENV_SECRET: &str = "HITHER_SECRET";
@@ -115,6 +123,76 @@ impl Identity {
             Source::Environment => None,
         }
     }
+
+    // ------------------------------------------------------ export / import
+
+    /// The secret as 64 hex characters.
+    pub fn to_hex(&self) -> String {
+        HEXLOWER.encode(&self.secret.to_bytes())
+    }
+
+    /// The secret as 24 words: 32 key bytes then one checksum byte, so a
+    /// mistyped word is caught instead of silently producing a different
+    /// identity.
+    pub fn to_words(&self) -> String {
+        let key = self.secret.to_bytes();
+        let mut bytes = key.to_vec();
+        bytes.push(checksum(&key));
+        words::encode(&bytes).join(" ")
+    }
+
+    /// Parse either form produced by [`to_hex`](Self::to_hex) or
+    /// [`to_words`](Self::to_words).
+    pub fn parse_secret(text: &str) -> Result<SecretKey> {
+        let trimmed = text.trim();
+        let parts = words::split(trimmed);
+        if parts.len() == 24 {
+            let bytes = words::decode(&parts, 33).context("those are not identity words")?;
+            let (key, check) = bytes.split_at(32);
+            let key: [u8; 32] = key.try_into().expect("32 bytes");
+            ensure!(
+                check[0] == checksum(&key),
+                "the words do not check out; one of them is probably wrong"
+            );
+            return Ok(SecretKey::from_bytes(&key));
+        }
+        if parts.len() == 1 {
+            return parse_hex(parts[0]).context("expected 64 hex characters or 24 words");
+        }
+        bail!(
+            "expected 64 hex characters or 24 words, got {} words",
+            parts.len()
+        )
+    }
+
+    /// Write `secret` to `path`. Refuses to replace a *different* existing
+    /// identity unless `force`, because the old one would be gone for good.
+    pub fn import(path: impl AsRef<Path>, secret: SecretKey, force: bool) -> Result<Self> {
+        let path = path.as_ref();
+        if path.exists() {
+            let existing = Self::load_or_create(path)?;
+            if existing.endpoint_id() == secret.public() {
+                return Ok(existing);
+            }
+            ensure!(
+                force,
+                "{} already holds a different identity ({}). Export it first if you want to keep it, then import with --force",
+                path.display(),
+                existing.endpoint_id().fmt_short()
+            );
+            std::fs::remove_file(path)?;
+        }
+        write_secret(path, &secret)?;
+        Ok(Self {
+            secret,
+            source: Source::Created(path.to_path_buf()),
+        })
+    }
+}
+
+/// One byte of BLAKE3 over the key, enough to catch a wrong word.
+fn checksum(key: &[u8; 32]) -> u8 {
+    blake3::hash(key).as_bytes()[0]
 }
 
 fn parse_hex(text: &str) -> Result<SecretKey> {
@@ -183,6 +261,39 @@ mod tests {
             let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
             assert_eq!(mode, 0o600);
         }
+    }
+
+    #[test]
+    fn words_round_trip_and_catch_a_typo() {
+        let dir = tempfile::tempdir().unwrap();
+        let id = Identity::load_or_create(dir.path().join("identity")).unwrap();
+        let words = id.to_words();
+        assert_eq!(words.split(' ').count(), 24);
+        let back = Identity::parse_secret(&words).unwrap();
+        assert_eq!(back.public(), id.endpoint_id());
+        assert_eq!(
+            Identity::parse_secret(&id.to_hex()).unwrap().public(),
+            id.endpoint_id()
+        );
+        // Swap the first word for another valid word: checksum must fail.
+        let mut parts: Vec<&str> = words.split(' ').collect();
+        parts[0] = if parts[0] == "zoo" { "abandon" } else { "zoo" };
+        assert!(Identity::parse_secret(&parts.join(" ")).is_err());
+    }
+
+    #[test]
+    fn import_refuses_to_replace_without_force() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("identity");
+        let a = Identity::load_or_create(&path).unwrap();
+        let other = SecretKey::generate();
+        assert!(Identity::import(&path, other.clone(), false).is_err());
+        assert_eq!(
+            Identity::load_or_create(&path).unwrap().endpoint_id(),
+            a.endpoint_id()
+        );
+        let b = Identity::import(&path, other.clone(), true).unwrap();
+        assert_eq!(b.endpoint_id(), other.public());
     }
 
     #[test]

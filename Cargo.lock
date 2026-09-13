@@ -1191,6 +1191,7 @@ dependencies = [
  "anyhow",
  "clap",
  "console",
+ "data-encoding",
  "hither-core",
  "indicatif",
  "iroh",
@@ -1207,6 +1208,7 @@ name = "hither-core"
 version = "0.1.0-alpha.4"
 dependencies = [
  "anyhow",
+ "blake3",
  "chrono",
  "data-encoding",
  "dirs",

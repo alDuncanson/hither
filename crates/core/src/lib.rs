@@ -29,6 +29,7 @@ pub mod paths;
 pub mod receive;
 pub mod send;
 mod throttle;
+pub mod words;
 
 pub use doctor::{DoctorOptions, DoctorReport, Verdict, diagnose};
 pub use events::{Event, EventReceiver, EventSender, FileEntry, PathKind, channel};
