@@ -18,7 +18,8 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use hither_core::{
     AcceptPolicy, CancellationToken, Cancelled, DoctorOptions, EndpointId, Friends, Identity,
-    Inbox, InboxOptions, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind, friends,
+    Inbox, InboxOptions, NetOptions, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind,
+    friends,
     link::{self, Link},
 };
 use tracing_subscriber::EnvFilter;
@@ -402,6 +403,15 @@ async fn main() {
     }
 }
 
+/// Network options from the shared flags, plus an optional identity key.
+fn net(common: &Common, secret_key: Option<hither_core::SecretKey>) -> NetOptions {
+    NetOptions {
+        relay: common.relay.clone().into(),
+        secret_key,
+        ..NetOptions::default()
+    }
+}
+
 /// An empty `--link-base` means "no link, just the ticket".
 fn link_base(flag: &str) -> Option<String> {
     let trimmed = flag.trim();
@@ -449,14 +459,13 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_send(rx, flags.qr, common.verbose > 0));
     let opts = SendOptions {
+        net: net(&common, secret_key),
         ticket_kind: if flags.short {
             TicketKind::Short
         } else {
             TicketKind::Full
         },
-        relay: common.relay.into(),
         link_base: link_base(&flags.link_base),
-        secret_key,
         ..SendOptions::default()
     };
     let sender = match Sender::start(&paths, opts, tx.clone()).await {
@@ -486,8 +495,7 @@ async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
         ticket,
         ReceiveOptions {
             out_dir,
-            relay: common.relay.into(),
-            secret_key: None,
+            net: net(&common, None),
         },
         tx,
         cancel,
@@ -533,7 +541,7 @@ async fn run_inbox(flags: InboxFlags, common: Common) -> Result<i32> {
         token,
         InboxOptions {
             dir: flags.dir.unwrap_or_else(|| PathBuf::from(".")),
-            relay: common.relay.into(),
+            net: net(&common, None),
             policy,
             link_base: link_base(&flags.link_base),
         },
@@ -569,8 +577,7 @@ async fn run_to(inbox: String, paths: Vec<PathBuf>, flags: ToFlags, common: Comm
     let ui = tokio::spawn(ui::render_to(rx, common.verbose > 0));
     let cancel = ctrl_c_token();
     let opts = SendOptions {
-        relay: common.relay.into(),
-        secret_key,
+        net: net(&common, secret_key),
         ..SendOptions::default()
     };
     let result = hither_core::send_to(&inbox, &paths, flags.label, opts, tx, cancel).await;
@@ -643,9 +650,9 @@ fn run_id(short: bool) -> Result<i32> {
     match id.path() {
         Some(p) => println!("{:<12} {}", console::style("stored at").dim(), p.display()),
         None => println!(
-            "{:<12} {}",
+            "{:<12} {} environment variable",
             console::style("source").dim(),
-            format!("{} environment variable", hither_core::identity::ENV_SECRET)
+            hither_core::identity::ENV_SECRET
         ),
     }
     Ok(0)
@@ -653,7 +660,7 @@ fn run_id(short: bool) -> Result<i32> {
 
 async fn run_doctor(json: bool, common: Common) -> Result<i32> {
     let report = hither_core::diagnose(DoctorOptions {
-        relay: common.relay.into(),
+        net: net(&common, None),
         timeout: Duration::from_secs(12),
     })
     .await?;

@@ -15,16 +15,19 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context, Result};
-use iroh::{Endpoint, RelayMode, TransportAddr, Watcher, endpoint::presets};
+use anyhow::Result;
+use iroh::{Endpoint, TransportAddr, Watcher};
 use serde::{Deserialize, Serialize};
 
-use crate::identity::{self, Identity};
+use crate::{
+    identity::{self, Identity},
+    net::{self, NetOptions},
+};
 
 /// Options for [`diagnose`].
 #[derive(Debug, Clone)]
 pub struct DoctorOptions {
-    pub relay: RelayMode,
+    pub net: NetOptions,
     /// Upper bound for the whole run.
     pub timeout: Duration,
 }
@@ -32,7 +35,7 @@ pub struct DoctorOptions {
 impl Default for DoctorOptions {
     fn default() -> Self {
         Self {
-            relay: RelayMode::Default,
+            net: NetOptions::default(),
             timeout: Duration::from_secs(12),
         }
     }
@@ -118,12 +121,8 @@ pub async fn diagnose(opts: DoctorOptions) -> Result<DoctorReport> {
     let udp = tokio::task::spawn_blocking(udp_self_test).await?;
 
     // Bring up an endpoint the way `hither <paths>` would, and time the relay.
-    let endpoint = Endpoint::builder(presets::N0)
-        .relay_mode(opts.relay.clone())
-        .bind()
-        .await
-        .context("could not start networking")?;
-    let relay = if matches!(opts.relay, RelayMode::Disabled) {
+    let endpoint = net::endpoint(&opts.net, vec![]).await?;
+    let relay = if !opts.net.relays_enabled() {
         RelayCheck {
             status: Status::Skipped,
             url: None,
@@ -146,10 +145,10 @@ pub async fn diagnose(opts: DoctorOptions) -> Result<DoctorReport> {
         }
     };
 
-    let nat = if matches!(opts.relay, RelayMode::Disabled) {
-        None
-    } else {
+    let nat = if opts.net.relays_enabled() {
         net_report(&endpoint, deadline).await
+    } else {
+        None
     };
     let addrs: Vec<String> = endpoint
         .addr()
@@ -301,9 +300,13 @@ fn judge(udp: &UdpCheck, relay: &RelayCheck, nat: Option<&NatCheck>) -> (Verdict
         Status::Failed => {
             direct_ok = false;
             reasons.push(format!(
-                "UDP to this machine's own address ({}) is blocked. A VPN or zero-trust client is dropping UDP, so direct (QUIC) connections cannot form.",
+                "UDP to this machine's own address ({}) is blocked, so direct (QUIC) connections cannot form.",
                 udp.lan_ip.map(|i| i.to_string()).unwrap_or_default()
             ));
+            reasons.push(
+                "If macOS just asked whether hither may accept incoming network connections, click Allow and run `hither doctor` again. If no dialog appeared, a VPN or zero-trust client (Zscaler, for example) is dropping UDP and only the relay path can work."
+                    .into(),
+            );
         }
         Status::Skipped => reasons
             .push("No route to the internet was found, so the LAN UDP check was skipped.".into()),
@@ -366,6 +369,7 @@ mod tests {
         };
         let (verdict, reasons) = judge(&udp, &relay, None);
         assert_eq!(verdict, Verdict::RelayOnly);
-        assert!(reasons[0].contains("zero-trust"));
+        assert!(reasons[0].contains("blocked"));
+        assert!(reasons[1].contains("click Allow"));
     }
 }

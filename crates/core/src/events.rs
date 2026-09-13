@@ -31,6 +31,18 @@ pub enum PathKind {
 }
 
 /// Progress events. Tagged so a JSON consumer can switch on `type`.
+///
+/// Which command produces what, so a UI author knows what to render:
+///
+/// | command | events |
+/// |---|---|
+/// | `hither <paths>` | `Import*`, `Ready`, then `Peer*` and `Upload*` per receiver |
+/// | `hither <ticket>` | `Connecting`, `Connected`, `PathChanged`, `ManifestReceived`, `Download*`, `Export*`, `Finished` |
+/// | `hither inbox` | `InboxReady`, then per offer `Offer`, `OfferAccepted`/`OfferDeclined`, `OfferStarted`, the receive events above, `OfferDone`/`OfferFailed` |
+/// | `hither to` | `Import*`, `Ready`, `OfferSent`, `ToAccepted`/`ToDeclined`, `Peer*`/`Upload*`, `ToDone` |
+///
+/// The enum is deliberately flat: one list is easier to serialise and to
+/// match on from JavaScript or Swift than nested enums would be.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {

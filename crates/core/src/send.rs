@@ -1,10 +1,16 @@
 //! The sending side: hash the selected files, serve them, hand out a ticket.
+//!
+//! [`Sender::start`] does three things in order: import (hash every file by
+//! reference and store a collection that names them), serve (start an
+//! endpoint with the blobs protocol behind a router), and mint the ticket.
+//! From then on iroh-blobs answers requests on its own; we only translate its
+//! provider events into our [`Event`]s so a UI can show who is pulling what.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use futures_buffered::BufferedStreamExt;
-use iroh::{Endpoint, EndpointAddr, RelayMode, SecretKey, endpoint::presets, protocol::Router};
+use iroh::{Endpoint, EndpointAddr, protocol::Router};
 use iroh_blobs::{
     BlobFormat, BlobsProtocol, Hash,
     api::{
@@ -26,10 +32,13 @@ use tracing::debug;
 
 use crate::{
     events::{Event, EventSender, FileEntry, emit},
-    link,
+    link, net,
+    net::NetOptions,
     paths::{self, Source},
     throttle::Throttle,
 };
+
+// ---------------------------------------------------------------- options
 
 /// How much reachability information to pack into the ticket.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -37,20 +46,18 @@ pub enum TicketKind {
     /// Endpoint id, relay URL and direct addresses. Longest, most robust.
     #[default]
     Full,
-    /// Endpoint id only. Receivers look the sender up through iroh's DNS
-    /// discovery. Shortest; needs the discovery service to be reachable.
+    /// Endpoint id only. Receivers look the sender up through discovery.
+    /// Shortest; needs the discovery service to be reachable.
     Short,
 }
 
 /// Options for [`Sender::start`].
 #[derive(Debug, Clone)]
 pub struct SendOptions {
+    pub net: NetOptions,
     pub ticket_kind: TicketKind,
-    pub relay: RelayMode,
-    /// Base URL to wrap the ticket in, e.g. `https://share.example`.
+    /// Base URL to wrap the ticket in, e.g. `https://example.com/`.
     pub link_base: Option<String>,
-    /// Fixed identity. `None` generates a fresh one per run.
-    pub secret_key: Option<SecretKey>,
     /// How many files to hash concurrently.
     pub import_parallelism: usize,
 }
@@ -58,16 +65,17 @@ pub struct SendOptions {
 impl Default for SendOptions {
     fn default() -> Self {
         Self {
+            net: NetOptions::default(),
             ticket_kind: TicketKind::default(),
-            relay: RelayMode::Default,
             link_base: None,
-            secret_key: None,
             import_parallelism: std::thread::available_parallelism()
                 .map(|n| n.get())
                 .unwrap_or(4),
         }
     }
 }
+
+// ----------------------------------------------------------------- sender
 
 /// A running share. Drop or [`shutdown`](Self::shutdown) it to stop serving.
 pub struct Sender {
@@ -76,18 +84,19 @@ pub struct Sender {
     ticket: BlobTicket,
     link: Option<String>,
     files: Vec<FileEntry>,
-    // Keeps the collection alive in the store for as long as we serve it.
+    /// Keeps the collection alive in the store for as long as we serve it.
     _tag: TempTag,
-    // Removed on drop; the store only holds hash trees, files stay in place.
+    /// Removed on drop. The store holds hash trees only; files stay in place.
     dir: TempDir,
+    /// Forwards iroh-blobs provider events as our events; aborted on drop.
     _events_task: AbortOnDropHandle<()>,
 }
 
 impl Sender {
     /// Hash `inputs`, start serving them, and return once the ticket is ready.
     pub async fn start(inputs: &[PathBuf], opts: SendOptions, events: EventSender) -> Result<Self> {
+        // 1. Import.
         let sources = paths::collect(inputs)?;
-        let total_bytes: u64 = sources.iter().map(|s| s.size).sum();
         let files: Vec<FileEntry> = sources
             .iter()
             .map(|s| FileEntry {
@@ -95,6 +104,7 @@ impl Sender {
                 size: s.size,
             })
             .collect();
+        let total_bytes: u64 = files.iter().map(|f| f.size).sum();
         emit(
             &events,
             Event::ImportStarted {
@@ -111,7 +121,6 @@ impl Sender {
         let store = FsStore::load(dir.path())
             .await
             .context("could not open the blob store")?;
-
         let (tag, collection) = import(&store, &sources, opts.import_parallelism, &events).await?;
         let hash = tag.hash();
         emit(
@@ -124,6 +133,7 @@ impl Sender {
         )
         .await;
 
+        // 2. Serve.
         let names: Arc<HashMap<Hash, String>> = Arc::new(
             collection
                 .iter()
@@ -147,24 +157,13 @@ impl Sender {
             names,
             events.clone(),
         )));
-
-        let secret_key = opts.secret_key.unwrap_or_else(SecretKey::generate);
-        let endpoint = Endpoint::builder(presets::N0)
-            .secret_key(secret_key)
-            .relay_mode(opts.relay.clone())
-            .alpns(vec![iroh_blobs::ALPN.to_vec()])
-            .bind()
-            .await
-            .context("could not start networking")?;
+        let endpoint = net::endpoint(&opts.net, vec![iroh_blobs::ALPN.to_vec()]).await?;
         let router = Router::builder(endpoint)
             .accept(iroh_blobs::ALPN, blobs)
             .spawn();
+        net::wait_online(router.endpoint(), &opts.net).await;
 
-        // Learn our relay and public addresses before minting the ticket.
-        // If the relay is slow to answer we still hand out what we have.
-        if !matches!(opts.relay, RelayMode::Disabled) {
-            let _ = tokio::time::timeout(Duration::from_secs(30), router.endpoint().online()).await;
-        }
+        // 3. Mint the ticket.
         let mut addr = router.endpoint().addr();
         apply_ticket_kind(&mut addr, opts.ticket_kind);
         let addrs: Vec<String> = addr.addrs.iter().map(|a| format!("{a:?}")).collect();
@@ -242,6 +241,8 @@ fn apply_ticket_kind(addr: &mut EndpointAddr, kind: TicketKind) {
     }
 }
 
+// ----------------------------------------------------------------- import
+
 /// Hash every source and store a collection pointing at them.
 async fn import(
     store: &Store,
@@ -266,11 +267,13 @@ async fn import(
         .map(|(name, tag, _)| ((name, tag.hash()), tag))
         .unzip();
     let tag = collection.clone().store(store).await?;
-    // The collection now protects the individual blobs.
+    // The collection now protects the individual blobs from garbage collection.
     drop(tags);
     Ok((tag, collection))
 }
 
+/// Hash one file. `TryReference` records the hash tree and points at the
+/// original file instead of copying it into the store.
 async fn import_one(
     store: &Store,
     src: Source,
@@ -284,8 +287,6 @@ async fn import_one(
         },
     )
     .await;
-    // TryReference: record the hash tree and point at the original file
-    // instead of copying it into the store.
     let mut stream = store
         .add_path_with_opts(AddPathOptions {
             path: src.path.clone(),
@@ -330,7 +331,10 @@ async fn import_one(
     Ok((src.name, tag, src.size))
 }
 
-/// Translate iroh-blobs provider events into our UI-neutral events.
+// -------------------------------------------------------- provider events
+
+/// Translate iroh-blobs provider events into our UI-neutral events. One
+/// task per connection request keeps per-request progress separate.
 async fn forward_provider_events(
     mut rx: mpsc::Receiver<ProviderMessage>,
     names: Arc<HashMap<Hash, String>>,

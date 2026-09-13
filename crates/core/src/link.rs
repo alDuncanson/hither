@@ -28,16 +28,16 @@ pub fn parse(input: &str) -> Result<BlobTicket> {
         return Ok(ticket);
     }
     if let Ok(url) = Url::parse(input) {
-        if let Some(fragment) = url.fragment() {
-            if let Ok(ticket) = BlobTicket::from_str(fragment) {
-                return Ok(ticket);
-            }
+        if let Some(fragment) = url.fragment()
+            && let Ok(ticket) = BlobTicket::from_str(fragment)
+        {
+            return Ok(ticket);
         }
         // Also accept `https://host/<ticket>` in case a link was rewritten.
-        if let Some(last) = url.path_segments().and_then(|mut s| s.next_back()) {
-            if let Ok(ticket) = BlobTicket::from_str(last) {
-                return Ok(ticket);
-            }
+        if let Some(last) = url.path_segments().and_then(|mut s| s.next_back())
+            && let Ok(ticket) = BlobTicket::from_str(last)
+        {
+            return Ok(ticket);
         }
         bail!("that link does not contain a share ticket");
     }

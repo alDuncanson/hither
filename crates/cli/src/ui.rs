@@ -473,11 +473,9 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
                     style(format!("hither {ticket}")).green().bold()
                 ));
             }
-            if show_qr {
-                if let Some(code) = qr(&target) {
-                    out.push_str(&code);
-                    out.push('\n');
-                }
+            if show_qr && let Some(code) = qr(&target) {
+                out.push_str(&code);
+                out.push('\n');
             }
             if verbose {
                 out.push_str(&format!(
@@ -603,29 +601,7 @@ pub async fn render_inbox(
                 }
                 match &ev {
                     Event::InboxReady { ticket, link, endpoint_id } => {
-                        let target = link.clone().unwrap_or_else(|| ticket.clone());
-                        let mut out = String::new();
-                        out.push_str(&format!("{}\n\n", style("Your inbox is open.").bold()));
-                        if let Some(link) = link {
-                            out.push_str(&format!("  {}\n\n", style(link).green().bold()));
-                            out.push_str(&format!("  {} {}\n\n", style("or:").dim(), style(format!("hither to {ticket} <files>")).dim()));
-                        } else {
-                            out.push_str(&format!("  {}\n\n", style(format!("hither to {ticket} <files>")).green().bold()));
-                        }
-                        if show_qr {
-                            if let Some(code) = qr(&target) {
-                                out.push_str(&code);
-                                out.push('\n');
-                            }
-                        }
-                        out.push_str(&format!(
-                            "{}\n{}\n{}\n{}",
-                            style(format!("Anyone holding this link can offer you files. {policy_note}")).dim(),
-                            style(format!("On another machine you own, save it once: hither friends add <name> {ticket}")).dim(),
-                            style(format!("Your endpoint id is {endpoint_id}.")).dim(),
-                            style("Ctrl-C closes the inbox.").dim()
-                        ));
-                        say_out(&mp, out);
+                        say_out(&mp, inbox_banner(ticket, link.as_deref(), endpoint_id, show_qr, policy_note));
                     }
                     Event::Offer {
                         id,
@@ -636,28 +612,12 @@ pub async fn render_inbox(
                         pending,
                         ..
                     } => {
-                        let who = match label {
-                            Some(l) => format!("{} ({from_short})", style(l).bold()),
-                            None => style(from_short).bold().to_string(),
-                        };
-                        let mut out = format!(
-                            "\n{} Tidings from {who}: {} ({})\n",
-                            style("✉").cyan().bold(),
-                            style(count_files(files.len() as u64)).bold(),
-                            HumanBytes(*bytes)
-                        );
-                        for f in files.iter().take(6) {
-                            out.push_str(&format!("    {}  {}\n", style(HumanBytes(f.size)).dim(), f.name));
-                        }
-                        if files.len() > 6 {
-                            out.push_str(&format!("    {}\n", style(format!("… and {} more", files.len() - 6)).dim()));
-                        }
+                        let text = offer_summary(from_short, label.as_deref(), files, *bytes);
                         if *pending {
-                            out.push_str(&format!("  {} ", style("Accept? [y/N]").bold()));
                             awaiting_answer.push_back(*id);
-                            mp.suspend(|| eprint!("{out}"));
+                            mp.suspend(|| eprint!("{text}  {} ", style("Accept? [y/N]").bold()));
                         } else {
-                            say(&mp, out.trim_end());
+                            say(&mp, text);
                         }
                     }
                     Event::OfferAccepted { .. } => {
@@ -693,6 +653,83 @@ pub async fn render_inbox(
         }
     }
     receive.clear();
+}
+
+/// The block printed when an inbox opens: link, plain command, house rules.
+fn inbox_banner(
+    ticket: &str,
+    link: Option<&str>,
+    endpoint_id: &str,
+    show_qr: bool,
+    policy_note: &str,
+) -> String {
+    let target = link.unwrap_or(ticket).to_string();
+    let mut out = format!("{}\n\n", style("Your inbox is open.").bold());
+    match link {
+        Some(link) => {
+            out.push_str(&format!("  {}\n\n", style(link).green().bold()));
+            out.push_str(&format!(
+                "  {} {}\n\n",
+                style("or:").dim(),
+                style(format!("hither to {ticket} <files>")).dim()
+            ));
+        }
+        None => out.push_str(&format!(
+            "  {}\n\n",
+            style(format!("hither to {ticket} <files>")).green().bold()
+        )),
+    }
+    if show_qr && let Some(code) = qr(&target) {
+        out.push_str(&code);
+        out.push('\n');
+    }
+    out.push_str(&format!(
+        "{}\n{}\n{}\n{}",
+        style(format!(
+            "Anyone holding this link can offer you files. {policy_note}"
+        ))
+        .dim(),
+        style(format!(
+            "On another machine you own, save it once: hither friends add <name> {ticket}"
+        ))
+        .dim(),
+        style(format!("Your endpoint id is {endpoint_id}.")).dim(),
+        style("Ctrl-C closes the inbox.").dim()
+    ));
+    out
+}
+
+/// "Tidings from Sam (abcd…): 3 files (2.86 MiB)" plus the first few names.
+fn offer_summary(
+    from_short: &str,
+    label: Option<&str>,
+    files: &[hither_core::FileEntry],
+    bytes: u64,
+) -> String {
+    let who = match label {
+        Some(l) => format!("{} ({from_short})", style(l).bold()),
+        None => style(from_short).bold().to_string(),
+    };
+    let mut out = format!(
+        "\n{} Tidings from {who}: {} ({})\n",
+        style("✉").cyan().bold(),
+        style(count_files(files.len() as u64)).bold(),
+        HumanBytes(bytes)
+    );
+    for f in files.iter().take(6) {
+        out.push_str(&format!(
+            "    {}  {}\n",
+            style(HumanBytes(f.size)).dim(),
+            f.name
+        ));
+    }
+    if files.len() > 6 {
+        out.push_str(&format!(
+            "    {}\n",
+            style(format!("… and {} more", files.len() - 6)).dim()
+        ));
+    }
+    out.trim_end().to_string()
 }
 
 /// Render the doctor report as a checklist.

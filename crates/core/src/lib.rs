@@ -1,14 +1,20 @@
 //! # hither-core
 //!
 //! UI-agnostic peer-to-peer file sharing on top of [iroh](https://iroh.computer)
-//! and iroh-blobs. Every front end (CLI, desktop, mobile, web) drives the same
-//! two operations and renders the same [`Event`] stream:
+//! and iroh-blobs. Every front end (CLI, desktop, mobile, web) drives the
+//! same operations and renders the same [`Event`] stream:
 //!
-//! - [`Sender::start`] hashes a set of files and folders, serves them, and
-//!   yields a ticket (or link) to hand to the other person.
+//! - [`Sender::start`] hashes files and folders, serves them, and yields a
+//!   ticket (or link) to hand to the other person.
 //! - [`receive`] takes that ticket, downloads with BLAKE3 verification, and
 //!   writes the files into a directory. Interrupted downloads resume.
+//! - [`Inbox::open`] listens under a persistent [`Identity`] for offers, and
+//!   [`send_to`] makes one. See [`inbox`] for the protocol.
+//! - [`diagnose`] explains what this network allows.
 //!
+//! Module map: [`net`] builds endpoints; [`events`] is the contract with
+//! UIs; [`paths`] and [`link`] convert between the outside world and our
+//! types; [`identity`] and [`friends`] are the two small files on disk.
 //! Tickets are standard iroh-blobs collection tickets, so `sendme receive`
 //! can read them too.
 
@@ -18,6 +24,7 @@ pub mod friends;
 pub mod identity;
 pub mod inbox;
 pub mod link;
+pub mod net;
 pub mod paths;
 pub mod receive;
 pub mod send;
@@ -28,9 +35,9 @@ pub use events::{Event, EventReceiver, EventSender, FileEntry, PathKind, channel
 pub use friends::Friends;
 pub use identity::Identity;
 pub use inbox::{AcceptPolicy, Inbox, InboxOptions, InboxTicket, send_to};
-pub use iroh::RelayMode;
-pub use iroh::{EndpointId, SecretKey};
+pub use iroh::{EndpointId, RelayMode, SecretKey};
 pub use iroh_blobs::ticket::BlobTicket;
+pub use net::NetOptions;
 pub use receive::{Cancelled, ReceiveOptions, Received, partial_dir, receive, receive_with};
 pub use send::{SendOptions, Sender, TicketKind};
 pub use tokio_util::sync::CancellationToken;
