@@ -3,10 +3,10 @@
 use std::{collections::HashMap, time::Duration};
 
 use console::style;
+use hither_core::{Event, EventReceiver, PathKind};
 use indicatif::{
     HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle,
 };
-use share_core::{Event, EventReceiver, PathKind};
 
 const TICK: Duration = Duration::from_millis(120);
 
@@ -154,12 +154,12 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
                     out.push_str(&format!(
                         "  {} {}\n\n",
                         style("or run:").dim(),
-                        style(format!("share get {ticket}")).dim()
+                        style(format!("hither {ticket}")).dim()
                     ));
                 } else {
                     out.push_str(&format!(
                         "  {}\n\n",
-                        style(format!("share get {ticket}")).green().bold()
+                        style(format!("hither {ticket}")).green().bold()
                     ));
                 }
                 if show_qr {
@@ -176,7 +176,7 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
                 }
                 out.push_str(&format!(
                     "{}",
-                    style("Waiting for the other side to connect. Keep this open until they have everything. Ctrl-C to stop.")
+                    style("Hie thee hither: keep this open until the other side has everything. Ctrl-C to stop.")
                         .dim()
                 ));
                 say_out(&mp, out);

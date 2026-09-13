@@ -1,17 +1,17 @@
 [package]
-name = "share-cli"
-description = "Share files and folders directly, peer to peer"
+name = "hither-cli"
+description = "Bring files hither: direct, verified, peer-to-peer transfer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "share"
+name = "hither"
 path = "src/main.rs"
 
 [dependencies]
-share-core = { path = "../core" }
+hither-core = { path = "../core" }
 anyhow.workspace = true
 iroh.workspace = true
 iroh-blobs.workspace = true

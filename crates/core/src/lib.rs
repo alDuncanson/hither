@@ -1,4 +1,4 @@
-//! # share-core
+//! # hither-core
 //!
 //! UI-agnostic peer-to-peer file sharing on top of [iroh](https://iroh.computer)
 //! and iroh-blobs. Every front end (CLI, desktop, mobile, web) drives the same

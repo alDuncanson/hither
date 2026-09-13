@@ -72,7 +72,7 @@ impl std::error::Error for Cancelled {}
 
 /// Where partial downloads for `hash` live under `out_dir`.
 pub fn partial_dir(out_dir: &Path, hash: &Hash) -> PathBuf {
-    out_dir.join(format!(".share-partial-{}", &hash.to_hex()[..16]))
+    out_dir.join(format!(".hither-partial-{}", &hash.to_hex()[..16]))
 }
 
 /// Download the share described by `ticket` into `opts.out_dir`.

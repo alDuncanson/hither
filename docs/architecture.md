@@ -15,12 +15,12 @@ side is asleep. The person never sees any of those words.
 flowchart TB
     subgraph surfaces["Surfaces (thin, replaceable)"]
         direction LR
-        cli["CLI<br/><code>NAME photos/</code>"]
+        cli["CLI<br/><code>hither photos/</code>"]
         menubar["Menu bar app<br/>(Tauri)"]
         mobile["iOS / Android<br/>(uniffi)"]
         web["Landing page<br/>(static, hands off)"]
     end
-    subgraph core["share-core (Rust, no UI deps)"]
+    subgraph core["hither-core (Rust, no UI deps)"]
         direction LR
         sender["Sender<br/>hash · serve · ticket"]
         receiver["Receiver<br/>manifest · verify · export"]
@@ -55,7 +55,7 @@ flowchart TB
     punch -. "coordinates over" .-> relay
 ```
 
-*Everything above `share-core` is a rendering of the same event stream.
+*Everything above `hither-core` is a rendering of the same event stream.
 Everything below it is n0's, and we hold it at arm's length behind the core's
 API so a future iroh change touches one crate.*
 
@@ -64,7 +64,7 @@ API so a future iroh change touches one crate.*
 Each is a choice we could have made differently. The "because" is the reason;
 the "so" is what it costs or buys.
 
-**One core, many faces.** `share-core` has no terminal or UI dependency and
+**One core, many faces.** `hither-core` has no terminal or UI dependency and
 emits a serialisable `Event` stream. *Because* the previous attempt (Ginseng)
 welded Tauri IPC types into the core and had to be thrown away. *So* CLI,
 desktop, mobile and web are thin renderers, and the core is testable headless.
@@ -77,7 +77,7 @@ of a collection. *Because* it gives verification, resume, deduplication and
 **Files are imported by reference, exported by rename.** The sender's store
 holds hash trees, not copies; the receiver's partial store sits beside the
 destination so the final step is a rename. *Because* 10 GB of TIFFs must not
-be copied twice. *So* a `.NAME-partial-<hash>` directory appears next to the
+be copied twice. *So* a `.hither-partial-<hash>` directory appears next to the
 destination during a download and vanishes on success.
 
 **Direct, then our relay, then our node.** A three-rung connectivity ladder.
@@ -90,8 +90,8 @@ product component, not a fallback, and the UI says which rung it is on.
 learns nothing. *So* one static page serves every link, and anyone holding a
 link can use it: share links to pull, inbox links to offer.
 
-**Two flows, same primitives.** `NAME <paths>` (sender-initiated) and
-`NAME inbox` (receiver-initiated). *Because* the person who wants the files
+**Two flows, same primitives.** `hither <paths>` (sender-initiated) and
+`hither inbox` (receiver-initiated). *Because* the person who wants the files
 is the one willing to install software; the friend should only open a link.
 *So* the inbox needs a persisted identity and a small announce protocol, and
 the sender side of an inbox transfer is literally `Sender::start` plus one
@@ -119,7 +119,7 @@ OneDrive is the thing we are replacing.
 
 ## 3. The two flows
 
-### Sender-initiated: `NAME photos/`
+### Sender-initiated: `hither photos/`
 
 ```mermaid
 sequenceDiagram
@@ -141,7 +141,7 @@ sequenceDiagram
     D-->>S: close; sender sees "received everything"
 ```
 
-### Receiver-initiated: `NAME inbox`
+### Receiver-initiated: `hither inbox`
 
 ```mermaid
 sequenceDiagram
@@ -336,10 +336,10 @@ The order is a dependency order, so the numbers mean something.
 1. **CLI, synchronous.** Done. Verified end to end; direct path unverified
    only because of the work Mac's network.
 2. **Name, identity, doctor.** Pick the name and rename. Persist a keypair
-   on request. `NAME doctor` reports UDP, relay reachability and addresses.
+   on request. `hither doctor` reports UDP, relay reachability and addresses.
    Enable iroh's platform TLS verifier so corporate CAs work.
-3. **Inbox.** Token, announce protocol, accept prompt, `NAME inbox` and
-   `NAME to <inbox-link> <paths>`.
+3. **Inbox.** Token, announce protocol, accept prompt, `hither inbox` and
+   `hither to <inbox-link> <paths>`.
 4. **Landing page and owned relay.** Static page that hands off to the app;
    one `iroh-relay` on a VPS; measure relayed throughput.
 5. **Menu bar app.** Tauri over the same core: drop zone, link on clipboard,
@@ -352,8 +352,8 @@ The order is a dependency order, so the numbers mean something.
 
 ## 11. Open decisions
 
-- **Name.** See `NOTES.md`. Needs to read as both `NAME photos/` and
-  `NAME inbox`.
+- **Name.** See `NOTES.md`. Needs to read as both `hither photos/` and
+  `hither inbox`.
 - **Inbox link encoding.** Our own prefix and base32, or a new ticket type
   registered with `iroh-tickets` so other iroh tools can parse it.
 - **Spoken codes.** magic-wormhole's `7-crossover-clockwork` is better than

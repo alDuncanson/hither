@@ -105,7 +105,7 @@ impl Sender {
         .await;
 
         let dir = tempfile::Builder::new()
-            .prefix("share-send-")
+            .prefix("hither-send-")
             .tempdir_in(std::env::temp_dir())
             .context("could not create a temporary directory")?;
         let store = FsStore::load(dir.path())

@@ -7,9 +7,9 @@ Last session: 2026-09-12, on Al's work Mac. Continue on the personal machine.
 The first pass of the CLI works and was verified end to end (see README for
 usage). Two crates:
 
-- `crates/core` (`share-core`): `Sender::start`, `receive`, one serialisable
+- `crates/core` (`hither-core`): `Sender::start`, `receive`, one serialisable
   `Event` stream, no UI deps. This is the piece every front end shares.
-- `crates/cli` (binary `share`): clap + indicatif over the core.
+- `crates/cli` (binary `hither`): clap + indicatif over the core.
 
 Verified with two local processes: 119 MiB nested tree byte-identical;
 interrupt at 30 MiB then resume; collision refused before any payload moves;
@@ -49,12 +49,18 @@ install it or change the channel to `stable`.
 
 ## Naming
 
-`share` is a placeholder for the binary, crates and repo. Criteria: one short
-word, comfortable to type twice a day, reads naturally as both `NAME photos/`
-and `NAME inbox`, sayable over a phone call and spellable after hearing it,
+**Decided 2026-09-13: `hither`.** Binary `hither`, crates `hither-core` and
+`hither-cli`, repo github.com/alDuncanson/hither. Theme: second-millennium
+English, used with a light hand in copy (the sender's waiting line is "Hie
+thee hither"; inbox offers can be "tidings") while commands stay plain.
+Portage was the runner-up. The research that led here follows.
+
+`share` was the placeholder for the binary, crates and repo. Criteria: one short
+word, comfortable to type twice a day, reads naturally as both `hither photos/`
+and `hither inbox`, sayable over a phone call and spellable after hearing it,
 not an existing command, free on Homebrew, no trademark clash for a Mac app,
 no "box" or "drive" connotations. crates.io single words are all squatted;
-publish as `NAME-cli` and `NAME-core` with the binary `NAME` (ripgrep ships
+publish as `hither-cli` and `hither-core` with the binary `hither` (ripgrep ships
 as `rg`, nobody minds).
 
 Checked 2026-09-13 (crates.io API, formulae.brew.sh, GitHub user, `command -v`,
@@ -104,14 +110,14 @@ waiting line "Hie thee hither" and the inbox's "tidings" for offers.
 
 ## The two flows
 
-### `NAME <paths>`: sender-initiated (built)
+### `hither <paths>`: sender-initiated (built)
 
 "Here, take this." Sender hashes, serves, prints a ticket; receiver pulls.
 Ephemeral identity per run. Good for one-to-many and for "I made this".
 Weakness for the film use case: all the work lands on the friend, who must
 run the app and stay online.
 
-### `NAME inbox`: receiver-initiated (next)
+### `hither inbox`: receiver-initiated (next)
 
 The motivated party runs a long-lived receiver with a stable identity and hands
 out one link. The friend opens it, drops files in, and is done. The receiver
@@ -120,16 +126,16 @@ sees an accept prompt (file list and size) before anything downloads.
 Design, kept deliberately close to what exists:
 
 1. **Identity.** Persist a `SecretKey` at the platform data dir
-   (`~/Library/Application Support/NAME/identity` on macOS, XDG elsewhere).
-   `NAME inbox` always uses it, so the endpoint id, and therefore the link,
-   stays stable. Store a random 128-bit inbox token beside it; `NAME inbox
+   (`~/Library/Application Support/hither/identity` on macOS, XDG elsewhere).
+   `hither inbox` always uses it, so the endpoint id, and therefore the link,
+   stays stable. Store a random 128-bit inbox token beside it; `hither inbox
    --rotate` replaces the token and invalidates old links.
 2. **Link.** `https://host/#inbox:<endpoint-id>:<token>`, optionally with
    the relay URL and direct addrs appended the way a `BlobTicket` does. With
    only the id, receivers rely on n0's DNS discovery, which the N0 preset
    already publishes to.
-3. **Announce protocol.** Custom ALPN, e.g. `NAME/inbox/0`, registered on the
-   inbox's router next to iroh-blobs. The sender side does what `NAME <paths>`
+3. **Announce protocol.** Custom ALPN, e.g. `hither/inbox/0`, registered on the
+   inbox's router next to iroh-blobs. The sender side does what `hither <paths>`
    does today (`Sender::start`) and then opens one bidirectional stream to the
    inbox and sends a length-prefixed, postcard-encoded
    `Announce { token, ticket, files: Vec<FileEntry>, sender_label }`. The
@@ -139,7 +145,7 @@ Design, kept deliberately close to what exists:
 4. **Transfer.** On accept the inbox calls the existing `receive()` with the
    announced ticket into `<inbox dir>/<sender-label or short id>-<date>/`.
    When it finishes it writes `Done` on the announce stream so the sender's
-   CLI (`NAME to <inbox-link> <paths>`) can exit. If the inbox dies mid-way
+   CLI (`hither to <inbox-link> <paths>`) can exit. If the inbox dies mid-way
    the sender keeps serving; the inbox resumes on restart because the
    partial store is content-addressed.
 5. **Why announce-then-pull instead of iroh-blobs `Push`.** It reuses the
@@ -213,15 +219,15 @@ phases and open decisions are in `docs/architecture.md` (with diagrams).
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).
 2. Pick the name; rename crates, binary, repo; update README.
-3. `identity.rs` in core (load-or-create secret key, token), `NAME id` to
-   print the endpoint id, `--identity` flag so `NAME <paths>` can be stable too.
-4. `inbox.rs`: announce protocol, `Inbox`, `send_to`; `NAME inbox` and
-   `NAME to` in the CLI with an accept prompt.
+3. `identity.rs` in core (load-or-create secret key, token), `hither id` to
+   print the endpoint id, `--identity` flag so `hither <paths>` can be stable too.
+4. `inbox.rs`: announce protocol, `Inbox`, `send_to`; `hither inbox` and
+   `hither to` in the CLI with an accept prompt.
 5. Static landing page that reads the fragment and offers "open in app" or
    "get the app". Nothing about the share ever reaches the host.
 6. Tauri menu bar app over the same core (drag files in, get a link; inbox
    offers appear as notifications). Then uniffi for mobile.
-7. Enable iroh's `platform-verifier` feature; add `NAME doctor` (net report:
+7. Enable iroh's `platform-verifier` feature; add `hither doctor` (net report:
    UDP blocked? relay reachable? direct addrs) and the "via relay" notice.
 8. Stand up a self-hosted `iroh-relay` on a VPS and point the CLI at it
    (`--relay URL` already exists); measure relayed throughput.
@@ -232,7 +238,7 @@ phases and open decisions are in `docs/architecture.md` (with diagrams).
 
 - `-v` on the sender prints the addresses baked into the ticket. Useful when
   a receiver can't connect.
-- Test scripts: extract tickets with `share get blob[a-z0-9]{50,}`; a loose
+- Test scripts: extract tickets with `hither blob[a-z0-9]{50,}`; a loose
   `blob[a-z0-9]+` matches "blobs" in log lines. macOS has no `timeout`.
 - Reference implementations: n0's `sendme` (same crates, CLI only) and the
   iroh-blobs `transfer-collection` example. iroh docs: relays, discovery,

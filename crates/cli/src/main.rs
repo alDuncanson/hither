@@ -1,9 +1,9 @@
-//! `share`: send files and folders directly to someone, peer to peer.
+//! `hither`: bring files here, directly, peer to peer.
 //!
-//!     share scans/                 # share a folder
-//!     share a.jpg b.tiff           # share a few files
-//!     share get <ticket or link>   # receive
-//!     share <ticket or link>       # also receives
+//!     hither scans/                # share a folder
+//!     hither a.jpg b.tiff          # share a few files
+//!     hither <ticket or link>      # receive
+//!     hither get <ticket or link>  # same, spelled out
 
 mod ui;
 
@@ -11,16 +11,16 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result};
 use clap::{Args, CommandFactory, Parser, Subcommand};
-use share_core::{
+use hither_core::{
     CancellationToken, Cancelled, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind, link,
 };
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "share",
+    name = "hither",
     version,
-    about = "Share files and folders directly with someone, peer to peer.",
+    about = "Bring files hither. Direct, verified, peer to peer.",
     args_conflicts_with_subcommands = true
 )]
 struct Cli {
@@ -53,7 +53,7 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
-    /// Receive a share from a ticket or link (the default when a link is given).
+    /// Bring a share hither from a ticket or link (the default when a link is given).
     #[command(visible_alias = "receive")]
     Get {
         /// The ticket or link you were sent.
@@ -78,7 +78,7 @@ struct SendFlags {
     qr: bool,
 
     /// Wrap the ticket in a link: <URL>/#<ticket>.
-    #[arg(long, env = "SHARE_LINK_BASE", value_name = "URL")]
+    #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL")]
     link_base: Option<String>,
 }
 
@@ -94,7 +94,7 @@ struct Common {
     /// Relay servers: "default", "disabled", or a relay URL.
     #[arg(
         long,
-        env = "SHARE_RELAY",
+        env = "HITHER_RELAY",
         default_value = "default",
         value_name = "MODE"
     )]
@@ -176,7 +176,7 @@ fn decide(cli: Cli) -> Action {
 fn init_tracing(verbose: u8) {
     let default = match verbose {
         0 => "error",
-        1 => "share=info,share_core=info,iroh=warn,iroh_blobs=warn",
+        1 => "hither=info,hither_core=info,iroh=warn,iroh_blobs=warn",
         _ => "debug",
     };
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default));
@@ -209,7 +209,7 @@ async fn main() {
 }
 
 async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Result<i32> {
-    let (tx, rx) = share_core::channel();
+    let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_send(rx, flags.qr, common.verbose > 0));
     let opts = SendOptions {
         ticket_kind: if flags.short {
@@ -240,7 +240,7 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
 async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
     let ticket = link::parse(&link)?;
     let out_dir = flags.out.unwrap_or_else(|| PathBuf::from("."));
-    let (tx, rx) = share_core::channel();
+    let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_get(rx));
     let cancel = CancellationToken::new();
     let cancel_on_ctrl_c = cancel.clone();
@@ -249,7 +249,7 @@ async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
             cancel_on_ctrl_c.cancel();
         }
     });
-    let result = share_core::receive(
+    let result = hither_core::receive(
         ticket,
         ReceiveOptions {
             out_dir,

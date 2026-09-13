@@ -1,5 +1,5 @@
 [package]
-name = "share-core"
+name = "hither-core"
 description = "UI-agnostic core for peer-to-peer file sharing over iroh"
 version.workspace = true
 edition.workspace = true
