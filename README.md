@@ -93,18 +93,35 @@ direct-only connection, useful on a LAN.
 
 ## Troubleshooting
 
-**Everything says "relayed" on macOS, or direct-only transfers time out.**
-The macOS application firewall blocks incoming connections for unsigned
-binaries such as a local debug build, so hole punching never completes and
-iroh falls back to the relay. Allow the binary once:
+**Everything says "relayed", or direct-only transfers time out.** iroh's
+direct paths are QUIC over UDP. Check whether UDP works at all on the machine
+before suspecting anything else:
+
+```sh
+python3 - <<'UDPTEST'
+import socket, subprocess
+ip = subprocess.run(["sh","-c","ipconfig getifaddr en0"],capture_output=True,text=True).stdout.strip()
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind((ip, 0)); s.settimeout(2)
+c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); c.sendto(b"x", (ip, s.getsockname()[1]))
+try: s.recvfrom(1); print("udp ok")
+except Exception as e: print("udp blocked:", e)
+UDPTEST
+```
+
+If that prints "udp blocked", a VPN or zero-trust client (Zscaler, for
+example, on managed work machines) is dropping UDP and only the relay path
+can work. Nothing in this tool can change that.
+
+If UDP works but transfers are still relayed, the macOS application firewall
+may be blocking incoming connections for the unsigned debug binary. Click
+Allow when prompted, or on a machine you administer:
 
 ```sh
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add "$PWD/target/debug/share"
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp "$PWD/target/debug/share"
 ```
 
-Signed and notarized release builds will not need this. Check current rules
-with `socketfilterfw --listapps`.
+Signed and notarized release builds will not trigger the prompt.
 
 **n0's public relays are slow (about 1 MB/s).** They are rate limited and
 meant for development. A production deployment runs its own relay or uses a

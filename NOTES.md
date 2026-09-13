@@ -16,10 +16,14 @@ interrupt at 30 MiB then resume; collision refused before any payload moves;
 link form (`https://host/#<ticket>`), implicit receive, bad input. Tickets are
 plain iroh-blobs collection tickets, so `sendme receive <ticket>` reads them.
 
-**Not verified: direct (hole-punched) connections.** The work Mac's
-application firewall has a "Block incoming connections" rule for the debug
-binary, so every transfer fell back to n0's public relay at ~1 MB/s and the
-receiver always reported "relayed". First thing on the personal machine:
+**Not verified: direct (hole-punched) connections.** The work Mac is a
+managed device running Zscaler (tunnel at 100.64.0.1), CrowdStrike Falcon and
+Jamf, and Zscaler drops UDP: a plain socket test to the Mac's own LAN address
+succeeds over TCP and times out over UDP. QUIC is UDP, so hole punching can
+never succeed there and every transfer fell back to n0's public relay at
+~1 MB/s. (An application-firewall rule for the debug binary looked like the
+cause at first; copying the binary to a new path produced no prompt and no
+change, so it was not.) First thing on the personal machine:
 
 ```sh
 cargo run -- some/folder --relay disabled        # terminal 1
@@ -28,7 +32,12 @@ cargo run -- get <ticket> --relay disabled       # terminal 2
 
 Click **Allow** if macOS asks about incoming connections. 120 MB should take a
 second or two and the receiver should print "direct". If it still times out,
-`/usr/libexec/ApplicationFirewall/socketfilterfw --listapps` shows the rule.
+check UDP itself before suspecting the code: the snippet in the README's
+troubleshooting section tells TCP-only networks apart from firewall rules.
+
+Product note from this: corporate and managed machines may be relay-only by
+policy. That is an argument for running our own relay eventually, and for the
+inbox/keeper design where the always-on node sits on a network we control.
 
 Also seen: intermittent "could not reach the sender" timeouts on ~4 of 12
 relayed connection attempts, clustered right after large relayed transfers.
