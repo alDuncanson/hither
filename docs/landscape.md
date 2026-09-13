@@ -3,6 +3,39 @@
 Reference for architecture decisions. Written 2026-09-13. Companion to
 `NOTES.md`.
 
+## The short version
+
+- Every transfer tool solves three things: **rendezvous** (finding each
+  other), **connectivity** (crossing two NATs), **trust** (right bytes, no
+  eavesdropper). The cloud solves connectivity by making one peer-to-peer hop
+  into two client-to-server hops, and charges you a disk for it.
+- **TCP** dials out through anything and in through nothing. **UDP** is what
+  hole punching needs and what zero-trust proxies drop. **QUIC** is TLS plus
+  streams plus migration on UDP, no TCP mode by design. **Relays** (TURN,
+  DERP, iroh-relay, transit relay) all forward encrypted bytes they cannot
+  read; iroh's runs as a WebSocket on 443, which is why it survives Zscaler.
+  **WebRTC** is the browser's only p2p primitive and its fallback is a relay
+  too. **Content addressing** is BitTorrent's idea at 16 KiB granularity with
+  one BLAKE3 root. A **fragment** secret never reaches the host; ours is a
+  ticket (permission to connect + hash to verify), not a decryption key.
+- **wormhole.app**: AES key in the fragment, up to 5 GB stored encrypted on
+  Backblaze for 24 h, above that WebRTC with the tab open, receiver pulls
+  from server and peers at once. **magic-wormhole**: two-word 16-bit code,
+  SPAKE2 makes one guess the attacker's limit, a "mailbox" rendezvous server,
+  direct TCP then a TCP transit relay, both online within the hour. **croc**
+  is the same with the relay always in the path.
+- Everyone who avoids storage needs both sides online; everyone who lets the
+  sender leave stores bytes somewhere. The only questions are whose disk and
+  who holds the key. Firefox Send died because anonymous zero-knowledge
+  storage becomes a malware CDN; a keeper node must be invite-only.
+- Dropbox was built to sync your own folders; sending big things to
+  strangers was never its problem. Still hard in 2026 because NAT stayed,
+  browsers got one primitive, relays cost money with nobody to bill, abuse
+  kills anonymous hosting, and corporate networks block UDP on purpose.
+- Our edge is the combination: whole trees verified and resumable with no
+  zip, a receiver-initiated inbox, one link that opens on every surface,
+  honesty about direct versus relayed, and storage only where we own it.
+
 ## 1. The problem in one paragraph
 
 Two devices on ordinary home or office networks both sit behind NAT, and

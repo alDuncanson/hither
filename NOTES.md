@@ -172,7 +172,9 @@ that users on such networks do not care. Options, roughly by value:
 Recommended: 1 + 2 + 3 as the strategy, 4 immediately, 5 later as the
 async/browser/corporate fallback. Background on the transports (TCP, UDP,
 QUIC, WebRTC, relays, PAKE) and how other tools handle this is in
-`docs/landscape.md`.
+`docs/landscape.md`; the design decisions, both flows, connectivity ladder,
+link anatomy, data model, friction map, UX principles, deployment topology,
+phases and open decisions are in `docs/architecture.md` (with diagrams).
 
 ## Next steps, in order
 
