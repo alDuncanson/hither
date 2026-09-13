@@ -93,10 +93,10 @@
   <!-- share link: someone is sending files -->
   <section id="share" hidden>
     <h1>Someone is sending you files.</h1>
-    <p class="lede">One command, run in the folder where you want them. It installs hither if you don't have it yet, then brings the files hither, checked byte for byte as they arrive.</p>
+    <p class="lede">One command. It installs hither if you don't have it yet, then brings the files into your Downloads folder, checked byte for byte as they arrive.</p>
     <div class="cmd big"><code id="run-cmd">curl -fsSL https://alduncanson.github.io/hither/run.sh | sh -s -- <span class="t"></span></code><button class="copy" data-copy="run-cmd">Copy</button></div>
     <p class="alt">Already have hither? Just run <code id="get-cmd">hither <span class="t"></span></code> <button class="copy small" data-copy="get-cmd">Copy</button> <span class="app-open">or <a class="app-link" href="#">open in the hither app</a></span></p>
-    <p class="note">The sender's window has to stay open until you have everything. If the download stops, run the same command again and it picks up where it left off.</p>
+    <p class="note">Paste it into Terminal (press ⌘-Space, type <em>Terminal</em>, press Return). macOS may pause and ask whether you really meant to paste a command; it does that for anything copied from a website when you don't use Terminal often, and it's fine to continue. The two scripts behind this command are short, plain shell you can <a href="run.sh">read first</a>. The sender's window has to stay open until you have everything. If the download stops, run the same command again and it picks up where it left off.</p>
   </section>
 
   <!-- inbox link: someone wants you to send them files -->

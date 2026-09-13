@@ -9,7 +9,7 @@ verified byte for byte as they arrive.
 ```sh
 hither scans/                  # share a folder
 hither img1.jpg img2.tiff      # share a few files
-hither <ticket-or-link>        # bring a share hither, into the current directory
+hither <ticket-or-link>        # bring a share hither, into your Downloads folder
 hither get <ticket-or-link>    # the same, spelled out
 hither scans/ --code           # also print four words to say over the phone...
 hither able-cactus-river-mouse # ...which the other side types instead of the link
@@ -77,7 +77,8 @@ holding the ticket can download; the connection is end-to-end encrypted.
 `hither <ticket>` connects, fetches the tiny collection index first (so it
 can show the file list and refuse collisions), then downloads what is missing
 into a `.hither-partial-<hash>` directory next to the destination and moves
-the verified files into place.
+the verified files into place. The destination is your Downloads folder
+unless `--out` says otherwise; the inbox uses the same default.
 
 Links are the same ticket in a URL fragment, `https://host/#<ticket>`, so
 the landing page never sees which share was opened. `hither://<ticket>` is

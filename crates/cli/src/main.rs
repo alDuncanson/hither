@@ -199,14 +199,14 @@ struct SendFlags {
 
 #[derive(Args, Debug, Clone, Default)]
 struct GetFlags {
-    /// Directory to save into. Defaults to the current directory.
+    /// Directory to save into. Defaults to your Downloads folder.
     #[arg(short, long, value_name = "DIR")]
     out: Option<PathBuf>,
 }
 
 #[derive(Args, Debug, Clone, Default)]
 struct InboxFlags {
-    /// Directory offers are saved under. Defaults to the current directory.
+    /// Directory offers are saved under. Defaults to your Downloads folder.
     #[arg(short, long, value_name = "DIR")]
     dir: Option<PathBuf>,
 
@@ -472,6 +472,13 @@ fn link_base(flag: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
+/// Where received files go unless told otherwise: the OS Downloads folder,
+/// like a browser, so nothing depends on which directory a command was run
+/// from. Falls back to the current directory if there is no such folder.
+fn downloads_dir() -> PathBuf {
+    dirs::download_dir().unwrap_or_else(|| PathBuf::from("."))
+}
+
 fn identity_key(use_identity: bool) -> Result<Option<hither_core::SecretKey>> {
     Ok(if use_identity {
         Some(Identity::load_default()?.secret_key().clone())
@@ -553,7 +560,7 @@ async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
     } else {
         link::parse(&link)?
     };
-    let out_dir = flags.out.unwrap_or_else(|| PathBuf::from("."));
+    let out_dir = flags.out.unwrap_or_else(downloads_dir);
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_get(rx));
     let cancel = ctrl_c_token();
@@ -606,7 +613,7 @@ async fn run_inbox(flags: InboxFlags, common: Common) -> Result<i32> {
         &identity,
         token,
         InboxOptions {
-            dir: flags.dir.unwrap_or_else(|| PathBuf::from(".")),
+            dir: flags.dir.unwrap_or_else(downloads_dir),
             net: net(&common, None),
             policy,
             link_base: link_base(&flags.link_base),

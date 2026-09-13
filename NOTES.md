@@ -332,6 +332,58 @@ plus `brew install --cask kap`, never the App Store. The same works for us:
   right-click, Open, or `xattr -dr com.apple.quarantine`. Fine for the alpha
   audience, not for friends.
 
+## First real transfer (2026-09-13)
+
+Al's personal Mac to his girlfriend's Mac: `hither <image>`, she opened the
+link, pasted the one command into Terminal, the image arrived. Two findings:
+
+- Terminal warned about the pasted command. That is macOS's general caution
+  for text pasted from a website into a shell; the landing page now says so
+  and links the scripts. The real fix for non-developers is the desktop app
+  reached from the same link, or a signed `.pkg`/cask, not the terminal.
+- Files should land in Downloads, not in whatever folder the command ran
+  from. Fixed in alpha.6: `hither <ticket>` and `hither inbox` default to
+  the OS Downloads folder; `--out`/`--dir` still override.
+
+## To do on the personal machine: signing and distribution
+
+Al's Apple Developer Program membership is active (auto-renew). Everything
+below needs the account's certificates and secrets, which live there.
+
+1. **Developer ID Application certificate.** In Xcode or developer.apple.com
+   create one if none exists; export it as a `.p12` with a password. Note
+   the Team ID (membership page).
+2. **App Store Connect API key** (preferred over an Apple ID password for
+   notarization): Users and Access -> Integrations -> App Store Connect API,
+   role Developer. Download the `.p8` once; note Key ID and Issuer ID.
+3. **GitHub secrets** on alDuncanson/hither: `APPLE_CERTIFICATE` (base64 of
+   the .p12), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`,
+   `APPLE_API_KEY` (Key ID), `APPLE_API_ISSUER`, `APPLE_API_KEY_PATH`
+   contents as `APPLE_API_KEY_CONTENT` (base64 of the .p8), and
+   `KEYCHAIN_PASSWORD` (any random string for the CI keychain).
+4. **Tauri signing in CI.** Add a `desktop-release.yml` on `v*` tags:
+   macos-14 runner, install tauri-cli, write the .p8 to a file, run
+   `cargo tauri build` with the env vars above plus
+   `APPLE_SIGNING_IDENTITY="Developer ID Application: Al Duncanson (TEAMID)"`.
+   Tauri signs, notarizes and staples the .app and .dmg. Upload the dmg to
+   the GitHub release next to the CLI tarballs.
+5. **Sign the CLI too** in `release.yml` for the two macOS targets:
+   `codesign --sign "Developer ID Application: ..." --options runtime
+   --timestamp hither`, then zip and `xcrun notarytool submit --wait` with
+   the API key, so the firewall prompt disappears. Re-tar after signing.
+6. **Homebrew tap.** Create `alDuncanson/homebrew-tap` with a formula for
+   the CLI (url = release tarball per arch, sha256 from the `.sha256` files)
+   and a cask for the app (dmg). Then `brew install alDuncanson/tap/hither`
+   and `brew install --cask alDuncanson/tap/hither`. Add a step to
+   `release.yml` that bumps the formula, or do it by hand at first.
+7. **Updater.** `tauri-plugin-updater` with a signing keypair
+   (`cargo tauri signer generate`), pubkey in `tauri.conf.json`, the
+   `latest.json` manifest published with each release.
+8. **Test the app on screen**: `cd apps/desktop/src-tauri && cargo tauri dev`.
+   Check: tray icon, drop a folder, link on clipboard, paste a link in
+   Receive, open the inbox and accept an offer from the CLI, `hither://`
+   from the landing page opens the app.
+
 ## Lessons that cost real time
 
 - **Ctrl-C hang in `hither inbox` (fixed in 0.1.0-alpha.3).** The UI task held
