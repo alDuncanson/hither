@@ -13,6 +13,8 @@ hither <ticket-or-link>        # bring a share hither, into the current director
 hither get <ticket-or-link>    # the same, spelled out
 hither inbox                   # open your inbox; hand out its link
 hither to <inbox-link> scans/  # offer files to someone's inbox
+hither friends add sam <link>  # save an inbox under a name...
+hither sam scans/              # ...and offer files to it by name
 hither id                      # your stable identity (created on first use)
 hither doctor                  # can this network do direct connections?
 ```
@@ -21,6 +23,14 @@ hither doctor                  # can this network do direct connections?
 
 ```sh
 curl -fsSL https://alduncanson.github.io/hither/install.sh | sh
+```
+
+Or skip the separate step entirely. `run.sh` installs hither if it is
+missing and then runs whatever follows, so a link's page can show one
+command:
+
+```sh
+curl -fsSL https://alduncanson.github.io/hither/run.sh | sh -s -- <ticket>
 ```
 
 That fetches the latest release for your machine from GitHub, checks its
@@ -81,6 +91,9 @@ same verified, resumable download. `--accept-all` and `--accept-from <id>`
 skip the prompt; `--rotate` replaces the token in the link, which invalidates
 every link handed out so far.
 
+Between machines you own, save the inbox once with `hither friends add
+laptop <link>` and from then on `hither laptop photos/` is the whole command.
+
 The link carries your endpoint id, your relay, and a 128-bit token. It is
 permission to *offer* you files, not to write them: the prompt is what
 protects your disk. Anyone who has the link can knock.
@@ -96,6 +109,7 @@ crates/core   hither-core   UI-agnostic library: Sender::start, receive, Inbox, 
 crates/cli    hither-cli    the `hither` binary: clap + indicatif over the core
 site/         the landing page served at alduncanson.github.io/hither
 install.sh    the curl | sh installer
+run.sh        install-if-missing, then run: the one-command form the landing page shows
 docs/         architecture.md (design, diagrams), landscape.md (transports, prior art)
 NOTES.md      where things stand and what is next
 ```

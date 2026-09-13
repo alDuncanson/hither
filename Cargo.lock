@@ -1186,7 +1186,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hither-cli"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1204,7 +1204,7 @@ dependencies = [
 
 [[package]]
 name = "hither-core"
-version = "0.1.0"
+version = "0.1.0-alpha.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1219,6 +1219,7 @@ dependencies = [
  "postcard",
  "rand",
  "serde",
+ "serde_json",
  "subtle",
  "tempfile",
  "tokio",

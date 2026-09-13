@@ -264,6 +264,31 @@ ever hold plaintext files or private keys.
 Release note: bump the workspace `version` in `Cargo.toml` before tagging so
 `hither --version` matches the tag (v0.1.0-alpha.1 binaries report 0.1.0).
 
+## Short links and spoken codes (open decision)
+
+Pain today: a share or inbox ticket is 140-210 characters, so moving it
+between two machines you own means emailing yourself. Fixes, cheapest first:
+
+1. **Friends** (done 2026-09-13): `hither friends add laptop <inbox link>`
+   once, then `hither laptop photos/`. Solves the repeated two-machine case
+   with no server. `hither inbox` prints the save-once hint.
+2. **Serverless short codes**, no PAKE: `hither photos/ --code` prints four
+   words (about 50 bits from a 7776-word list). Both sides derive a keypair
+   from the words; the sender runs a second, short-lived endpoint under it
+   that hands over the real ticket on a tiny ALPN; the receiver derives the
+   same endpoint id and dials it through n0's DNS discovery. Zero
+   infrastructure. Weakness: anyone can check whether a code is live with one
+   DNS lookup, so codes must be long (four words) and short-lived (minutes).
+3. **Two-word codes with PAKE**, magic-wormhole style: needs a rendezvous
+   server we run (a few hundred lines, zero knowledge, could live on
+   alduncanson.com). SPAKE2 makes each guess cost one interactive round with
+   the real peer, so two words are enough. Also the natural home for short
+   URLs (`hither.link/x7k2` with the key in the fragment).
+
+Recommendation: 1 now (done), 2 for the alpha if spoken codes matter before
+the VPS exists, 3 when the VPS is up; 2 and 3 can share the same CLI surface
+(`--code`, `hither <words>`).
+
 ## Next steps, in order
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).
@@ -288,7 +313,8 @@ Release note: bump the workspace `version` in `Cargo.toml` before tagging so
    works. Not reproduced under debug logging. Check on the personal machine
    before suspecting the code; if it persists there, capture
    `RUST_LOG=iroh=debug` on both sides.
-5. ~~Static landing page~~ Done 2026-09-13: `site/index.html`, deployed by
+5. ~~Static landing page~~ Done 2026-09-13 (one-command form via `run.sh`
+   added the same day): `site/index.html`, deployed by
    `.github/workflows/pages.yml` to https://alduncanson.github.io/hither/;
    printed links point there by default (`--link-base ""` for ticket only).
    Later: serve it from alduncanson.com and change `DEFAULT_LINK_BASE`. The
