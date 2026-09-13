@@ -619,8 +619,9 @@ pub async fn render_inbox(
                             }
                         }
                         out.push_str(&format!(
-                            "{}\n{}\n{}",
+                            "{}\n{}\n{}\n{}",
                             style(format!("Anyone holding this link can offer you files. {policy_note}")).dim(),
+                            style(format!("On another machine you own, save it once: hither friends add <name> {ticket}")).dim(),
                             style(format!("Your endpoint id is {endpoint_id}.")).dim(),
                             style("Ctrl-C closes the inbox.").dim()
                         ));

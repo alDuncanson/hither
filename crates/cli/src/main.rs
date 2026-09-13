@@ -5,6 +5,8 @@
 //!     hither <ticket or link>          # receive
 //!     hither inbox                     # open your inbox and print its link
 //!     hither to <inbox link> scans/    # offer files to someone's inbox
+//!     hither friends add sam <link>    # save an inbox under a name
+//!     hither sam scans/                # offer files to a saved friend
 //!     hither id                        # your stable identity
 //!     hither doctor                    # can this network do direct connections?
 
@@ -15,8 +17,8 @@ use std::{collections::BTreeSet, path::PathBuf, str::FromStr, time::Duration};
 use anyhow::{Context, Result, bail};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use hither_core::{
-    AcceptPolicy, CancellationToken, Cancelled, DoctorOptions, EndpointId, Identity, Inbox,
-    InboxOptions, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind,
+    AcceptPolicy, CancellationToken, Cancelled, DoctorOptions, EndpointId, Friends, Identity,
+    Inbox, InboxOptions, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind, friends,
     link::{self, Link},
 };
 use tracing_subscriber::EnvFilter;
@@ -83,8 +85,8 @@ enum Command {
     },
     /// Offer files to someone's inbox and stay until they have them.
     To {
-        /// Their inbox ticket or link.
-        #[arg(value_name = "INBOX")]
+        /// Their inbox ticket or link, or a saved friend's name.
+        #[arg(value_name = "INBOX|NAME")]
         inbox: String,
         /// Files or folders to offer.
         #[arg(required = true, value_name = "PATH")]
@@ -93,6 +95,11 @@ enum Command {
         flags: ToFlags,
         #[command(flatten)]
         common: Common,
+    },
+    /// Save inbox links under short names: `hither to sam photos/`.
+    Friends {
+        #[command(subcommand)]
+        cmd: FriendsCmd,
     },
     /// Show (and on first use, create) your stable identity.
     Id {
@@ -110,6 +117,21 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum FriendsCmd {
+    /// Remember an inbox link as a name.
+    Add {
+        /// Lowercase letters, digits, '-' or '_'.
+        name: String,
+        /// Their inbox ticket or link.
+        link: String,
+    },
+    /// List saved friends.
+    List,
+    /// Forget a saved friend.
+    Remove { name: String },
 }
 
 #[derive(Args, Debug, Clone, Default)]
@@ -132,6 +154,10 @@ struct SendFlags {
     /// fresh one, so the other side can recognise you.
     #[arg(long)]
     identity: bool,
+
+    /// When offering to an inbox: a name to show the other side.
+    #[arg(long = "as", value_name = "NAME")]
+    label: Option<String>,
 }
 
 #[derive(Args, Debug, Clone, Default)]
@@ -233,6 +259,7 @@ enum Action {
     Get(String, GetFlags, Common),
     Inbox(InboxFlags, Common),
     To(String, Vec<PathBuf>, ToFlags, Common),
+    Friends(FriendsCmd),
     Id(bool, Common),
     Doctor(bool, Common),
 }
@@ -256,6 +283,7 @@ fn decide(cli: Cli) -> Result<Action> {
             flags,
             common,
         }) => Action::To(inbox, paths, flags, common),
+        Some(Command::Friends { cmd }) => Action::Friends(cmd),
         Some(Command::Id { short, common }) => Action::Id(short, common),
         Some(Command::Doctor { json, common }) => Action::Doctor(json, common),
         None => {
@@ -268,6 +296,23 @@ fn decide(cli: Cli) -> Result<Action> {
             // link followed by paths means offer.
             let first = &cli.items[0];
             let first_is_path = std::path::Path::new(first).exists();
+            // `hither sam photos/`: a saved friend's name followed by paths.
+            if !first_is_path && cli.items.len() >= 2 && friends::is_friend(first) {
+                return Ok(Action::To(
+                    first.clone(),
+                    cli.items[1..].iter().map(PathBuf::from).collect(),
+                    ToFlags {
+                        label: cli.send.label.clone(),
+                        identity: cli.send.identity,
+                    },
+                    cli.common,
+                ));
+            }
+            if !first_is_path && cli.items.len() == 1 && friends::is_friend(first) {
+                bail!(
+                    "{first} is a saved friend. Offer files with:\n  hither {first} <files or folders>"
+                );
+            }
             match (first_is_path, link::parse_any(first)) {
                 (false, Ok(Link::Share(_))) if cli.items.len() == 1 => {
                     Action::Get(first.clone(), cli.get, cli.common)
@@ -284,7 +329,7 @@ fn decide(cli: Cli) -> Result<Action> {
                     first.clone(),
                     cli.items[1..].iter().map(PathBuf::from).collect(),
                     ToFlags {
-                        label: None,
+                        label: cli.send.label.clone(),
                         identity: cli.send.identity,
                     },
                     cli.common,
@@ -338,6 +383,7 @@ async fn main() {
             init_tracing(common.verbose);
             run_to(inbox, paths, flags, common).await
         }
+        Action::Friends(cmd) => run_friends(cmd),
         Action::Id(short, common) => {
             init_tracing(common.verbose);
             run_id(short)
@@ -498,7 +544,7 @@ async fn run_inbox(flags: InboxFlags, common: Common) -> Result<i32> {
 }
 
 async fn run_to(inbox: String, paths: Vec<PathBuf>, flags: ToFlags, common: Common) -> Result<i32> {
-    let inbox = link::parse_inbox(&inbox)?;
+    let inbox = friends::resolve_inbox(&inbox)?;
     let secret_key = identity_key(flags.identity)?;
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_to(rx, common.verbose > 0));
@@ -518,6 +564,47 @@ async fn run_to(inbox: String, paths: Vec<PathBuf>, flags: ToFlags, common: Comm
         }
         Err(e) => Err(e),
     }
+}
+
+fn run_friends(cmd: FriendsCmd) -> Result<i32> {
+    let mut book = Friends::load()?;
+    match cmd {
+        FriendsCmd::Add { name, link } => {
+            let ticket = link::parse_inbox(&link)?;
+            book.add(&name, &ticket)?;
+            book.save()?;
+            println!(
+                "Saved {} ({}). Now: {}",
+                console::style(&name).bold(),
+                console::style(ticket.endpoint_id().fmt_short()).dim(),
+                console::style(format!("hither {name} <files>")).green()
+            );
+        }
+        FriendsCmd::List => {
+            if book.inboxes.is_empty() {
+                println!("No friends saved yet. `hither friends add <name> <inbox link>`");
+            }
+            for (name, ticket) in &book.inboxes {
+                let short = hither_core::InboxTicket::from_str(ticket)
+                    .map(|t| t.endpoint_id().fmt_short().to_string())
+                    .unwrap_or_else(|_| "invalid".into());
+                println!(
+                    "{:<20} {}",
+                    console::style(name).bold(),
+                    console::style(short).dim()
+                );
+            }
+        }
+        FriendsCmd::Remove { name } => {
+            if book.remove(&name) {
+                book.save()?;
+                println!("Forgot {name}.");
+            } else {
+                println!("No friend named {name}.");
+            }
+        }
+    }
+    Ok(0)
 }
 
 fn run_id(short: bool) -> Result<i32> {

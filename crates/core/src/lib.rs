@@ -14,6 +14,7 @@
 
 pub mod doctor;
 pub mod events;
+pub mod friends;
 pub mod identity;
 pub mod inbox;
 pub mod link;
@@ -24,6 +25,7 @@ mod throttle;
 
 pub use doctor::{DoctorOptions, DoctorReport, Verdict, diagnose};
 pub use events::{Event, EventReceiver, EventSender, FileEntry, PathKind, channel};
+pub use friends::Friends;
 pub use identity::Identity;
 pub use inbox::{AcceptPolicy, Inbox, InboxOptions, InboxTicket, send_to};
 pub use iroh::RelayMode;
