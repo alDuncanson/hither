@@ -78,6 +78,30 @@ a registrar):
 Before committing to one: search USPTO TDSR/TESS for software (classes 9 and
 42), confirm the domain at a registrar, and grab the Homebrew tap name.
 
+Archaic and whimsical candidates (Al liked `hither`), checked the same way:
+
+| name | meaning | sending | receiving | crates | brew | domains |
+|---|---|---|---|---|---|---|
+| **hither** | to here | "send it hither" | `hither <link>` brings it here | free | free | .dev/.sh maybe |
+| **wend** | to make one's way | `wend photos/` sends them on their way | `wend inbox` | free | free | all taken |
+| **forthwith** | immediately | `forthwith photos/` | `forthwith inbox` | free | free | .sh maybe |
+| **apace** | swiftly | `apace photos/` | `apace inbox` | free | free | .sh maybe |
+| **tidings** | news brought to you | "send tidings" | `tidings inbox` is lovely | free | free | all taken |
+| **waybill** | the document that travels with a shipment | `waybill photos/` | `waybill inbox` | free | free | .sh maybe |
+| **consign** | hand over for delivery | `consign photos/` | `consign inbox` | free | free | .sh maybe |
+| **portage** | carrying a boat between two waters | `portage photos/` (across the NAT) | `portage inbox` | free | free | all taken |
+| pouch | the diplomatic pouch | `pouch photos/` | `pouch inbox` | free | free | all taken |
+| thither / hence / yonder | to there / from here / over there | send-only words | weak for inbox | free | free | mixed |
+| hie | hasten ("hie thee hither") | `hie photos/` | pairs with hither as a verb | free | free | .sh maybe |
+| prithee | please, I pray thee | jokey | jokey | free | free | all maybe |
+| missive, proffer, beckon, valise, dray, lading, impart, convey, herald, envoy, summon, remit, trove | good words | | | taken | free | mostly taken |
+| dak | Indian English for the post | short, obscure | | free | free | all taken |
+
+Pairing idea if the binary is `hither`: keep the commands plain (`hither photos/`,
+`hither <link>`, `hither inbox`) and spend the whimsy on copy, e.g. the sender's
+waiting line "Hie thee hither" and the inbox's "tidings" for offers.
+
+
 ## The two flows
 
 ### `NAME <paths>`: sender-initiated (built)
