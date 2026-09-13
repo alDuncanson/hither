@@ -549,9 +549,14 @@ pub async fn render_to(mut rx: EventReceiver, verbose: bool) {
                 if let Some(pb) = waiting.take() {
                     pb.finish_and_clear();
                 }
+                let why = if reason.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {reason}")
+                };
                 say(
                     &mp,
-                    format!("{} They declined ({reason}).", style("✗").red().bold()),
+                    format!("{} They declined{why}.", style("✗").red().bold()),
                 );
             }
             Event::ToDone { files, bytes } => {

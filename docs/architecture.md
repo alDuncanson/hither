@@ -339,8 +339,9 @@ The order is a dependency order, so the numbers mean something.
    keypair; `hither doctor` reports UDP, NAT type, public address, relay
    reachability and the addresses a ticket would carry, with a plain-language
    verdict; iroh's platform TLS verifier is on so corporate CAs work.
-3. **Inbox.** Token, announce protocol, accept prompt, `hither inbox` and
-   `hither to <inbox-link> <paths>`.
+3. **Inbox.** Done. Token, announce protocol on `hither/inbox/0`, accept
+   prompt with Ask / AcceptAll / AcceptFrom policies, `hither inbox` and
+   `hither to <inbox-link> <paths>`; the pull reuses the inbox's endpoint.
 4. **Landing page and owned relay.** Static page that hands off to the app;
    one `iroh-relay` on a VPS; measure relayed throughput.
 5. **Menu bar app.** Tauri over the same core: drop zone, link on clipboard,

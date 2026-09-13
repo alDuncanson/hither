@@ -222,8 +222,23 @@ phases and open decisions are in `docs/architecture.md` (with diagrams).
 2. ~~Pick the name; rename crates, binary, repo; update README.~~ Done 2026-09-13.
 3. ~~`identity.rs`, `hither id`, `--identity`.~~ Done 2026-09-13. The inbox
    token is not part of it yet; add it with the inbox.
-4. `inbox.rs`: announce protocol, `Inbox`, `send_to`; `hither inbox` and
-   `hither to` in the CLI with an accept prompt.
+4. ~~`inbox.rs`: announce protocol, `Inbox`, `send_to`; `hither inbox` and
+   `hither to` in the CLI with an accept prompt.~~ Done 2026-09-13. As built:
+   ticket kind `inbox` via `iroh-tickets` (prints as `inbox…`, carries id +
+   relay + 16-byte token, no direct addrs so it survives address changes);
+   ALPN `hither/inbox/0`; one bi stream per offer, frames are u32 LE length +
+   postcard; `Announce {token, ticket, files, bytes, label}` then
+   `Reply::{Accepted, Declined, Done, Failed}`; token compared in constant
+   time, bad token = silent decline (no event); policies Ask / AcceptAll /
+   AcceptFrom; offers land in `<dir>/<slug(label or short id)>-<timestamp>/`;
+   the pull reuses the inbox's own endpoint (`receive_with`). Verified: auto
+   accept, prompted yes, prompted no, stable link across restarts.
+
+   Known flake (both flows, this network): the first connection to a freshly
+   started endpoint sometimes times out after 30 s, then the next attempt
+   works. Not reproduced under debug logging. Check on the personal machine
+   before suspecting the code; if it persists there, capture
+   `RUST_LOG=iroh=debug` on both sides.
 5. Static landing page that reads the fragment and offers "open in app" or
    "get the app". Nothing about the share ever reaches the host.
 6. Tauri menu bar app over the same core (drag files in, get a link; inbox

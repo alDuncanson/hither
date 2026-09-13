@@ -425,7 +425,7 @@ impl Inner {
         self.pending.lock().unwrap().remove(&id);
 
         if !accepted {
-            let reason = "declined".to_string();
+            let reason = String::new();
             write_frame(
                 &mut send,
                 &Reply::Declined {
@@ -637,7 +637,10 @@ async fn announce_and_wait(
                 },
             )
             .await;
-            bail!("the inbox declined: {reason}");
+            if reason.is_empty() {
+                bail!("the inbox declined the offer");
+            }
+            bail!("the inbox declined the offer: {reason}");
         }
         other => bail!("unexpected reply from the inbox: {other:?}"),
     }

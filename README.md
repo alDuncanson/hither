@@ -11,6 +11,8 @@ hither scans/                  # share a folder
 hither img1.jpg img2.tiff      # share a few files
 hither <ticket-or-link>        # bring a share hither, into the current directory
 hither get <ticket-or-link>    # the same, spelled out
+hither inbox                   # open your inbox; hand out its link
+hither to <inbox-link> scans/  # offer files to someone's inbox
 hither id                      # your stable identity (created on first use)
 hither doctor                  # can this network do direct connections?
 ```
@@ -51,9 +53,25 @@ Links are the same ticket in a URL fragment, `https://host/#<ticket>`, so a
 future landing page never sees which share was opened. Use `--link-base` to
 print that form.
 
-The sender must stay online until the other side has everything. See
-`NOTES.md` and `docs/architecture.md` for the inbox and keeper designs that
-change that.
+### Inbox: when you are the one who wants the files
+
+`hither inbox` runs a long-lived receiver under your stable identity and
+prints a link that keeps working across restarts. Whoever opens it runs
+`hither to <link> <files>` (or just `hither <link> <files>`); their side
+hashes the files and *announces* the share to your inbox: file list, sizes,
+an optional name. You see the offer and answer y or n before a single payload
+byte moves. Accepted offers land in `<dir>/<name>-<timestamp>/` using the
+same verified, resumable download. `--accept-all` and `--accept-from <id>`
+skip the prompt; `--rotate` replaces the token in the link, which invalidates
+every link handed out so far.
+
+The link carries your endpoint id, your relay, and a 128-bit token. It is
+permission to *offer* you files, not to write them: the prompt is what
+protects your disk. Anyone who has the link can knock.
+
+Both sides must be online during the transfer; the sender's command exits
+when your inbox confirms it has everything. See `docs/architecture.md` for
+the keeper node that removes the both-online requirement later.
 
 ## Layout
 
