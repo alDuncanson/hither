@@ -1,4 +1,6 @@
-# iroh 1.x and iroh-blobs 0.103 require Rust 1.91+. Pinned to an installed
-# toolchain; switch to "stable" once `rustup update stable` is past 1.91.
+# iroh 1.x and iroh-blobs 0.103 require Rust 1.91+. Pinned to a specific
+# version so every machine and CI build the same thing; rustup installs the
+# toolchain and the listed components on first use.
 [toolchain]
 channel = "1.97.0"
+components = ["clippy", "rustfmt"]
