@@ -11,6 +11,8 @@ hither scans/                  # share a folder
 hither img1.jpg img2.tiff      # share a few files
 hither <ticket-or-link>        # bring a share hither, into the current directory
 hither get <ticket-or-link>    # the same, spelled out
+hither id                      # your stable identity (created on first use)
+hither doctor                  # can this network do direct connections?
 ```
 
 Built on [iroh](https://iroh.computer) 1.x and iroh-blobs. Tickets are
@@ -79,6 +81,15 @@ cargo run -- some/folder
 
 Set `RUST_LOG` or pass `-v`/`-vv` for logs. `--relay disabled` forces a
 direct-only connection, useful on a LAN.
+
+`hither id` stores a keypair at the platform data directory
+(`~/Library/Application Support/hither/identity` on macOS). `HITHER_SECRET`
+(64 hex characters) overrides it and `HITHER_IDENTITY_FILE` moves it.
+`hither <paths> --identity` shares under that identity instead of a fresh one.
+
+`hither doctor` runs a bare UDP self-test, times the relay, and reads iroh's
+network report. Exit code 0 means direct connections should work, 2 means
+relay-only, 3 means nothing reachable. `--json` prints the full report.
 
 ## Troubleshooting
 

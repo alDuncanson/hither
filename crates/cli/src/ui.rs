@@ -360,7 +360,11 @@ pub async fn render_get(mut rx: EventReceiver) {
                             HumanBytes(bytes),
                             HumanDuration(Duration::from_secs_f64(seconds)),
                             HumanBytes((bytes as f64 / seconds) as u64),
-                            path_label(path_kind).to_lowercase()
+                            match path_kind {
+                                PathKind::Relay =>
+                                    "via relay; `hither doctor` explains why".to_string(),
+                                other => path_label(other).to_lowercase(),
+                            }
                         ),
                     );
                 }
@@ -414,4 +418,118 @@ fn path_label(kind: PathKind) -> String {
         PathKind::Relay => "Relayed".into(),
         PathKind::Unknown => "Receiving".into(),
     }
+}
+
+/// Render the doctor report as a checklist.
+pub fn render_doctor(r: &hither_core::DoctorReport) {
+    use hither_core::doctor::Status;
+    let mark = |s: Status| match s {
+        Status::Ok => style("✓").green().bold().to_string(),
+        Status::Failed => style("✗").red().bold().to_string(),
+        Status::Skipped => style("–").dim().to_string(),
+        Status::Unknown => style("?").yellow().bold().to_string(),
+    };
+    let line = |m: String, label: &str, detail: String| {
+        println!("{m} {:<22} {}", label, style(detail).dim());
+    };
+
+    match &r.identity {
+        Some(id) => line(
+            mark(Status::Ok),
+            "identity",
+            format!(
+                "{}{}",
+                id.endpoint_id,
+                id.path
+                    .as_ref()
+                    .map(|p| format!("  ({p})"))
+                    .unwrap_or_default()
+            ),
+        ),
+        None => line(
+            mark(Status::Skipped),
+            "identity",
+            "none yet; `hither id` creates one".into(),
+        ),
+    }
+    line(
+        mark(r.udp.loopback),
+        "udp loopback",
+        "127.0.0.1 round trip".into(),
+    );
+    line(
+        mark(r.udp.lan),
+        "udp to own address",
+        r.udp
+            .lan_ip
+            .map(|ip| ip.to_string())
+            .unwrap_or_else(|| "no outbound route".into()),
+    );
+    line(
+        mark(r.relay.status),
+        "relay",
+        match (&r.relay.url, r.relay.millis) {
+            (Some(u), Some(ms)) => format!("{u}  {ms} ms"),
+            (Some(u), None) => u.clone(),
+            _ => "unreachable".into(),
+        },
+    );
+    if let Some(nat) = &r.nat {
+        let nat_kind = match nat.symmetric_nat {
+            Some(true) => "symmetric (hard)",
+            Some(false) => "consistent mapping (good)",
+            None => "unknown",
+        };
+        line(
+            mark(match nat.symmetric_nat {
+                Some(true) => Status::Failed,
+                Some(false) => Status::Ok,
+                None => Status::Unknown,
+            }),
+            "nat",
+            nat_kind.into(),
+        );
+        line(
+            mark(match nat.public_v4.as_ref().or(nat.public_v6.as_ref()) {
+                Some(_) => Status::Ok,
+                None => Status::Unknown,
+            }),
+            "public address",
+            [nat.public_v4.clone(), nat.public_v6.clone()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        if let Some((url, ms)) = nat.relay_latencies.first() {
+            line(mark(Status::Ok), "nearest relay", format!("{url}  {ms} ms"));
+        }
+    }
+    if !r.addrs.is_empty() {
+        line(mark(Status::Ok), "ticket would carry", r.addrs.join(", "));
+    }
+    println!();
+    let verdict = match r.verdict {
+        hither_core::Verdict::DirectLikely => {
+            style("Direct connections should work.").green().bold()
+        }
+        hither_core::Verdict::RelayOnly => style("Transfers will go via relay on this network.")
+            .yellow()
+            .bold(),
+        hither_core::Verdict::Offline => style("Nothing can connect from here right now.")
+            .red()
+            .bold(),
+    };
+    println!("{verdict}");
+    for reason in &r.reasons {
+        println!("  {} {reason}", style("·").dim());
+    }
+    println!(
+        "{}",
+        style(format!(
+            "checked in {:.1}s",
+            r.elapsed_millis as f64 / 1000.0
+        ))
+        .dim()
+    );
 }

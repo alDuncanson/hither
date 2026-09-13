@@ -218,17 +218,19 @@ phases and open decisions are in `docs/architecture.md` (with diagrams).
 ## Next steps, in order
 
 1. Personal machine: clone, build, confirm a **direct** transfer (above).
-2. Pick the name; rename crates, binary, repo; update README.
-3. `identity.rs` in core (load-or-create secret key, token), `hither id` to
-   print the endpoint id, `--identity` flag so `hither <paths>` can be stable too.
+   Run `hither doctor` first: it should say "Direct connections should work."
+2. ~~Pick the name; rename crates, binary, repo; update README.~~ Done 2026-09-13.
+3. ~~`identity.rs`, `hither id`, `--identity`.~~ Done 2026-09-13. The inbox
+   token is not part of it yet; add it with the inbox.
 4. `inbox.rs`: announce protocol, `Inbox`, `send_to`; `hither inbox` and
    `hither to` in the CLI with an accept prompt.
 5. Static landing page that reads the fragment and offers "open in app" or
    "get the app". Nothing about the share ever reaches the host.
 6. Tauri menu bar app over the same core (drag files in, get a link; inbox
    offers appear as notifications). Then uniffi for mobile.
-7. Enable iroh's `platform-verifier` feature; add `hither doctor` (net report:
-   UDP blocked? relay reachable? direct addrs) and the "via relay" notice.
+7. ~~Enable iroh's `platform-verifier` feature; add `hither doctor`; add the
+   "via relay" notice.~~ Done 2026-09-13. Doctor uses iroh's
+   `unstable-net-report` feature; all of that API lives in `doctor.rs`.
 8. Stand up a self-hosted `iroh-relay` on a VPS and point the CLI at it
    (`--relay URL` already exists); measure relayed throughput.
 9. Housekeeping: CI (fmt, test, build matrix), clippy, signed and notarized

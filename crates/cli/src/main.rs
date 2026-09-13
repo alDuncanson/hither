@@ -4,15 +4,18 @@
 //!     hither a.jpg b.tiff          # share a few files
 //!     hither <ticket or link>      # receive
 //!     hither get <ticket or link>  # same, spelled out
+//!     hither id                    # your stable identity
+//!     hither doctor                # can this network do direct connections?
 
 mod ui;
 
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{Context, Result};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use hither_core::{
-    CancellationToken, Cancelled, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind, link,
+    CancellationToken, Cancelled, DoctorOptions, Identity, ReceiveOptions, RelayMode, SendOptions,
+    Sender, TicketKind, link,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -64,6 +67,22 @@ enum Command {
         #[command(flatten)]
         common: Common,
     },
+    /// Show (and on first use, create) your stable identity.
+    Id {
+        /// Print only the endpoint id.
+        #[arg(long)]
+        short: bool,
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Check whether this network allows direct connections and can reach a relay.
+    Doctor {
+        /// Print the report as JSON.
+        #[arg(long)]
+        json: bool,
+        #[command(flatten)]
+        common: Common,
+    },
 }
 
 #[derive(Args, Debug, Clone, Default)]
@@ -80,6 +99,11 @@ struct SendFlags {
     /// Wrap the ticket in a link: <URL>/#<ticket>.
     #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL")]
     link_base: Option<String>,
+
+    /// Share under your stable identity (see `hither id`) instead of a
+    /// fresh one, so the other side can recognise you.
+    #[arg(long)]
+    identity: bool,
 }
 
 #[derive(Args, Debug, Clone, Default)]
@@ -140,6 +164,8 @@ impl From<RelayArg> for RelayMode {
 enum Action {
     Send(Vec<PathBuf>, SendFlags, Common),
     Get(String, GetFlags, Common),
+    Id(bool, Common),
+    Doctor(bool, Common),
 }
 
 fn decide(cli: Cli) -> Action {
@@ -154,6 +180,8 @@ fn decide(cli: Cli) -> Action {
             flags,
             common,
         }) => Action::Get(link, flags, common),
+        Some(Command::Id { short, common }) => Action::Id(short, common),
+        Some(Command::Doctor { json, common }) => Action::Doctor(json, common),
         None => {
             if cli.items.is_empty() {
                 Cli::command().print_help().ok();
@@ -198,6 +226,14 @@ async fn main() {
             init_tracing(common.verbose);
             run_get(link, flags, common).await
         }
+        Action::Id(short, common) => {
+            init_tracing(common.verbose);
+            run_id(short)
+        }
+        Action::Doctor(json, common) => {
+            init_tracing(common.verbose);
+            run_doctor(json, common).await
+        }
     };
     match result {
         Ok(code) => std::process::exit(code),
@@ -209,6 +245,11 @@ async fn main() {
 }
 
 async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Result<i32> {
+    let secret_key = if flags.identity {
+        Some(Identity::load_default()?.secret_key().clone())
+    } else {
+        None
+    };
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_send(rx, flags.qr, common.verbose > 0));
     let opts = SendOptions {
@@ -219,6 +260,7 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
         },
         relay: common.relay.into(),
         link_base: flags.link_base,
+        secret_key,
         ..SendOptions::default()
     };
     let sender = match Sender::start(&paths, opts, tx.clone()).await {
@@ -269,4 +311,47 @@ async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
         }
         Err(e) => Err(e),
     }
+}
+
+fn run_id(short: bool) -> Result<i32> {
+    let id = Identity::load_default()?;
+    if short {
+        println!("{}", id.endpoint_id());
+        return Ok(0);
+    }
+    if id.was_created() {
+        eprintln!("{}", console::style("Created a new identity.").green());
+    }
+    println!(
+        "{:<12} {}",
+        console::style("endpoint id").dim(),
+        id.endpoint_id()
+    );
+    match id.path() {
+        Some(p) => println!("{:<12} {}", console::style("stored at").dim(), p.display()),
+        None => println!(
+            "{:<12} {}",
+            console::style("source").dim(),
+            format!("{} environment variable", hither_core::identity::ENV_SECRET)
+        ),
+    }
+    Ok(0)
+}
+
+async fn run_doctor(json: bool, common: Common) -> Result<i32> {
+    let report = hither_core::diagnose(DoctorOptions {
+        relay: common.relay.into(),
+        timeout: Duration::from_secs(12),
+    })
+    .await?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        ui::render_doctor(&report);
+    }
+    Ok(match report.verdict {
+        hither_core::Verdict::DirectLikely => 0,
+        hither_core::Verdict::RelayOnly => 2,
+        hither_core::Verdict::Offline => 3,
+    })
 }

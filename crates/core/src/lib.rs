@@ -12,15 +12,20 @@
 //! Tickets are standard iroh-blobs collection tickets, so `sendme receive`
 //! can read them too.
 
+pub mod doctor;
 pub mod events;
+pub mod identity;
 pub mod link;
 pub mod paths;
 pub mod receive;
 pub mod send;
 mod throttle;
 
+pub use doctor::{DoctorOptions, DoctorReport, Verdict, diagnose};
 pub use events::{Event, EventReceiver, EventSender, FileEntry, PathKind, channel};
+pub use identity::Identity;
 pub use iroh::RelayMode;
+pub use iroh::{EndpointId, SecretKey};
 pub use iroh_blobs::ticket::BlobTicket;
 pub use receive::{Cancelled, ReceiveOptions, Received, partial_dir, receive};
 pub use send::{SendOptions, Sender, TicketKind};

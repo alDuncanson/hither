@@ -335,9 +335,10 @@ The order is a dependency order, so the numbers mean something.
 
 1. **CLI, synchronous.** Done. Verified end to end; direct path unverified
    only because of the work Mac's network.
-2. **Name, identity, doctor.** Pick the name and rename. Persist a keypair
-   on request. `hither doctor` reports UDP, relay reachability and addresses.
-   Enable iroh's platform TLS verifier so corporate CAs work.
+2. **Name, identity, doctor.** Done. `hither`; `hither id` persists a
+   keypair; `hither doctor` reports UDP, NAT type, public address, relay
+   reachability and the addresses a ticket would carry, with a plain-language
+   verdict; iroh's platform TLS verifier is on so corporate CAs work.
 3. **Inbox.** Token, announce protocol, accept prompt, `hither inbox` and
    `hither to <inbox-link> <paths>`.
 4. **Landing page and owned relay.** Static page that hands off to the app;
