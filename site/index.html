@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hither</title>
+<meta name="description" content="Bring files here, directly. Verified peer-to-peer file transfer with no account and no upload.">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F3F5F6; --surface: #FFFFFF; --ink: #1B2330; --ink-soft: #56616F;
+    --rule: #D5DBE1; --accent: #1F7A8C; --accent-ink: #FFFFFF; --code-bg: #E9EDF0;
+    --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141A22; --surface: #1B232E; --ink: #E7EBEF; --ink-soft: #9AA6B4;
+      --rule: #2B3541; --accent: #6CC3D5; --accent-ink: #0E1A1E; --code-bg: #202A36;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body);
+    font-size: 17px; line-height: 1.6; padding-block: 0 72px; padding-inline: clamp(16px, 5vw, 40px);
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  header { padding-block: 48px 8px; }
+  .word {
+    font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em;
+    color: var(--accent); text-decoration: none;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 700; font-size: clamp(34px, 7vw, 52px);
+    line-height: 1.05; letter-spacing: -0.02em; margin: 22px 0 14px; text-wrap: balance;
+  }
+  p { margin: 0 0 16px; }
+  .lede { font-size: 19px; color: var(--ink-soft); }
+  ol.steps { list-style: none; margin: 32px 0 0; padding: 0; display: grid; gap: 22px; counter-reset: step; }
+  ol.steps li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 14px; }
+  ol.steps li::before {
+    content: counter(step); font-family: var(--mono); font-size: 13px; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 50%; width: 30px; height: 30px;
+    display: grid; place-items: center; margin-top: 2px;
+  }
+  .step h2 { font-family: var(--display); font-weight: 700; font-size: 20px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .step p { color: var(--ink-soft); font-size: 16px; margin-bottom: 10px; }
+  .cmd {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+    background: var(--code-bg); border-radius: 6px; padding: 10px 10px 10px 14px;
+  }
+  .cmd code {
+    font-family: var(--mono); font-size: 14px; line-height: 1.5; overflow-x: auto; white-space: nowrap;
+    display: block; scrollbar-width: thin;
+  }
+  .cmd code .ph { color: var(--ink-soft); font-style: italic; }
+  button.copy {
+    font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.02em;
+    background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px;
+    padding: 8px 12px; cursor: pointer;
+  }
+  button.copy:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button.copy[data-done="true"] { background: var(--ink); color: var(--bg); }
+  .note { margin-top: 28px; padding: 14px 16px; border-left: 3px solid var(--accent); color: var(--ink-soft); font-size: 16px; }
+  details { margin-top: 40px; border-top: 1px solid var(--rule); padding-top: 18px; }
+  summary { font-family: var(--display); font-weight: 700; cursor: pointer; font-size: 18px; }
+  details p, details li { color: var(--ink-soft); font-size: 16px; }
+  details ul { padding-left: 1.2em; margin: 10px 0 0; }
+  details li { margin-bottom: 8px; }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--ink-soft); }
+  footer a { color: var(--accent); }
+  .ticket { word-break: break-all; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+  [hidden] { display: none !important; }
+  @media (max-width: 480px) { .cmd { grid-template-columns: 1fr; } button.copy { justify-self: start; } }
+</style>
+</head>
+<body>
+<main>
+  <header><a class="word" href="./">hither</a></header>
+
+  <!-- share link: someone is sending files -->
+  <section id="share" hidden>
+    <h1>Someone is sending you files.</h1>
+    <p class="lede">Two steps and they land in the folder you run them from. No account, no upload, and the files are checked byte for byte as they arrive.</p>
+    <ol class="steps">
+      <li><div class="step">
+        <h2>Install hither, once</h2>
+        <p>One command. It puts a single small program in <code>~/.local/bin</code>.</p>
+        <div class="cmd"><code id="install-cmd">curl -fsSL https://alduncanson.github.io/hither/install.sh | sh</code><button class="copy" data-copy="install-cmd">Copy</button></div>
+      </div></li>
+      <li><div class="step">
+        <h2>Bring the files hither</h2>
+        <p>Run this in the folder where you want them. It resumes if interrupted.</p>
+        <div class="cmd"><code id="get-cmd">hither <span class="t"></span></code><button class="copy" data-copy="get-cmd">Copy</button></div>
+      </div></li>
+    </ol>
+    <p class="note">The sender's window has to stay open until you have everything. If the download stops, run the same command again and it picks up where it left off.</p>
+  </section>
+
+  <!-- inbox link: someone wants you to send them files -->
+  <section id="inbox" hidden>
+    <h1>Someone gave you their inbox.</h1>
+    <p class="lede">Drop files into it from your own computer. They see what you are offering and accept before anything moves.</p>
+    <ol class="steps">
+      <li><div class="step">
+        <h2>Install hither, once</h2>
+        <p>One command. It puts a single small program in <code>~/.local/bin</code>.</p>
+        <div class="cmd"><code id="install-cmd-2">curl -fsSL https://alduncanson.github.io/hither/install.sh | sh</code><button class="copy" data-copy="install-cmd-2">Copy</button></div>
+      </div></li>
+      <li><div class="step">
+        <h2>Offer your files</h2>
+        <p>Replace the last part with the files or folders you want to send.</p>
+        <div class="cmd"><code id="to-cmd">hither to <span class="t"></span> <span class="ph">photos/</span></code><button class="copy" data-copy="to-cmd">Copy</button></div>
+      </div></li>
+    </ol>
+    <p class="note">Keep the window open until it says they have everything. Add <code>--as "Your name"</code> so they know who it's from.</p>
+  </section>
+
+  <!-- no link: the project page -->
+  <section id="home" hidden>
+    <h1>Bring files here, directly.</h1>
+    <p class="lede">hither sends files and folders from one computer to another with no account, no upload and no zip. Every chunk is verified as it arrives, and interrupted transfers resume.</p>
+    <ol class="steps">
+      <li><div class="step">
+        <h2>Install</h2>
+        <div class="cmd"><code id="install-cmd-3">curl -fsSL https://alduncanson.github.io/hither/install.sh | sh</code><button class="copy" data-copy="install-cmd-3">Copy</button></div>
+      </div></li>
+      <li><div class="step">
+        <h2>Share something</h2>
+        <p>Prints a link. Send it to anyone; they open it and follow two steps.</p>
+        <div class="cmd"><code id="share-cmd">hither <span class="ph">photos/</span></code><button class="copy" data-copy="share-cmd">Copy</button></div>
+      </div></li>
+      <li><div class="step">
+        <h2>Or open an inbox</h2>
+        <p>A link people can drop files into whenever you're online. You approve each offer.</p>
+        <div class="cmd"><code id="inbox-cmd">hither inbox</code><button class="copy" data-copy="inbox-cmd">Copy</button></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <!-- fragment present but not a ticket -->
+  <section id="bad" hidden>
+    <h1>That link is missing its ticket.</h1>
+    <p class="lede">The part after <code>#</code> should start with <code>blob</code> or <code>inbox</code>. Ask the person who sent it to copy the whole thing.</p>
+  </section>
+
+  <details>
+    <summary>What is this, and is it safe?</summary>
+    <p>hither is open-source software that moves files straight between two computers using <a href="https://iroh.computer">iroh</a>. There is no server holding your files and no account on either side.</p>
+    <ul>
+      <li><strong>The ticket never left your browser.</strong> It lives after the <code>#</code> in the address, which browsers keep to themselves; this page is a static file and records nothing.</li>
+      <li><strong>Only the intended person can connect.</strong> The ticket names the other computer by its public key; the connection is encrypted end to end to that key.</li>
+      <li><strong>The files cannot arrive corrupted.</strong> Each 16 KiB piece is checked against a BLAKE3 hash tree before it is written.</li>
+      <li><strong>It is direct when it can be.</strong> When two networks refuse to connect directly, an encrypted relay forwards the bytes without being able to read them.</li>
+    </ul>
+    <p>Anyone holding a link can use it, so share links the way you would share the files themselves. Source and documentation: <a href="https://github.com/alDuncanson/hither">github.com/alDuncanson/hither</a>.</p>
+  </details>
+
+  <footer>
+    <span id="ticket-echo" class="ticket" hidden></span>
+    <p>hither is free software (MIT or Apache-2.0). Made by <a href="https://alduncanson.com">Al Duncanson</a>.</p>
+  </footer>
+</main>
+<script>
+(function () {
+  var sections = ['share', 'inbox', 'home', 'bad'];
+  function show(id) {
+    sections.forEach(function (s) { document.getElementById(s).hidden = (s !== id); });
+  }
+  function render() {
+    var raw = decodeURIComponent(location.hash.replace(/^#/, '')).trim();
+    var echo = document.getElementById('ticket-echo');
+    echo.hidden = true;
+    if (!raw) { show('home'); document.title = 'hither'; return; }
+    var ok = /^[a-z0-9]+$/.test(raw);
+    if (ok && raw.indexOf('blob') === 0) {
+      show('share'); document.title = 'Files for you · hither';
+    } else if (ok && raw.indexOf('inbox') === 0) {
+      show('inbox'); document.title = 'An inbox for you · hither';
+    } else {
+      show('bad'); document.title = 'hither'; return;
+    }
+    document.querySelectorAll('.t').forEach(function (el) { el.textContent = raw; });
+    echo.textContent = 'ticket: ' + raw;
+    echo.hidden = false;
+  }
+  document.querySelectorAll('button.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = document.getElementById(btn.getAttribute('data-copy'));
+      var text = code.textContent.replace(/\s+/g, ' ').trim();
+      var done = function () {
+        btn.textContent = 'Copied'; btn.dataset.done = 'true';
+        setTimeout(function () { btn.textContent = 'Copy'; btn.dataset.done = 'false'; }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this:', text); });
+      } else { window.prompt('Copy this:', text); }
+    });
+  });
+  window.addEventListener('hashchange', render);
+  render();
+})();
+</script>
+</body>
+</html>
