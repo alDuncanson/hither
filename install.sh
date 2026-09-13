@@ -41,34 +41,34 @@ else
   [ -n "$tag" ] || fail "could not find a release. Is GitHub reachable?"
 fi
 
-asset="hither-$tag-$target.tar.gz"
-base="https://github.com/$REPO/releases/download/$tag"
+asset="hither-${tag}-${target}.tar.gz"
+base="https://github.com/${REPO}/releases/download/${tag}"
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t hither)
 trap 'rm -rf "$tmp"' EXIT
 
-say "Fetching hither $tag for $target…"
-curl -fsSL -o "$tmp/$asset" "$base/$asset" || fail "no build for $target in $tag"
-curl -fsSL -o "$tmp/$asset.sha256" "$base/$asset.sha256" || fail "checksum missing for $asset"
+say "Fetching hither ${tag} for ${target}..."
+curl -fsSL -o "${tmp}/${asset}" "${base}/${asset}" || fail "no build for ${target} in ${tag}"
+curl -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" || fail "checksum missing for ${asset}"
 
 (
   cd "$tmp"
-  if command -v shasum >/dev/null 2>&1; then shasum -a 256 -c "$asset.sha256" >/dev/null
-  elif command -v sha256sum >/dev/null 2>&1; then sha256sum -c "$asset.sha256" >/dev/null
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 -c "${asset}.sha256" >/dev/null
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum -c "${asset}.sha256" >/dev/null
   else say "warning: no sha256 tool found, skipping checksum"
   fi
 ) || fail "checksum did not match; refusing to install"
 
-tar -xzf "$tmp/$asset" -C "$tmp"
+tar -xzf "${tmp}/${asset}" -C "${tmp}"
 mkdir -p "$INSTALL_DIR"
-install -m 755 "$tmp/hither" "$INSTALL_DIR/hither"
-say "Installed $("$INSTALL_DIR/hither" --version) to $INSTALL_DIR/hither"
+install -m 755 "${tmp}/hither" "${INSTALL_DIR}/hither"
+say "Installed $("${INSTALL_DIR}/hither" --version) to ${INSTALL_DIR}/hither"
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
   *)
     say ""
-    say "$INSTALL_DIR is not on your PATH. Add this to your shell profile:"
-    say "  export PATH=\"$INSTALL_DIR:\$PATH\""
-    say "or run it directly: $INSTALL_DIR/hither"
+    say "${INSTALL_DIR} is not on your PATH. Add this to your shell profile:"
+    say "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    say "or run it directly: ${INSTALL_DIR}/hither"
     ;;
 esac
