@@ -1,0 +1,26 @@
+name: desktop
+on:
+  push:
+    branches: [main]
+    paths: ['apps/desktop/**', 'crates/core/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['apps/desktop/**', 'crates/core/**']
+permissions:
+  contents: read
+jobs:
+  build:
+    # Compiles the Tauri app (no bundling, no signing) so a core change that
+    # breaks the app is caught. Bundled, signed releases come later.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: cargo fmt --all --check --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked -- -D warnings
+      - run: cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
