@@ -21,6 +21,10 @@ use hither_core::{
 };
 use tracing_subscriber::EnvFilter;
 
+/// Where printed links point. The page reads the ticket from the fragment
+/// and walks the other person through installing and running hither.
+const DEFAULT_LINK_BASE: &str = "https://alduncanson.github.io/hither/";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "hither",
@@ -119,9 +123,10 @@ struct SendFlags {
     #[arg(long)]
     qr: bool,
 
-    /// Wrap the ticket in a link: <URL>/#<ticket>.
-    #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL")]
-    link_base: Option<String>,
+    /// Base of the printed link, <URL>#<ticket>. Pass an empty string to
+    /// print only the ticket.
+    #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL", default_value = DEFAULT_LINK_BASE)]
+    link_base: String,
 
     /// Share under your stable identity (see `hither id`) instead of a
     /// fresh one, so the other side can recognise you.
@@ -150,9 +155,10 @@ struct InboxFlags {
     #[arg(long, value_name = "ENDPOINT_ID")]
     accept_from: Vec<String>,
 
-    /// Wrap the inbox ticket in a link: <URL>/#<ticket>.
-    #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL")]
-    link_base: Option<String>,
+    /// Base of the printed link, <URL>#<ticket>. Pass an empty string to
+    /// print only the ticket.
+    #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL", default_value = DEFAULT_LINK_BASE)]
+    link_base: String,
 
     /// Also print the link as a QR code.
     #[arg(long)]
@@ -350,6 +356,12 @@ async fn main() {
     }
 }
 
+/// An empty `--link-base` means "no link, just the ticket".
+fn link_base(flag: &str) -> Option<String> {
+    let trimmed = flag.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
 fn identity_key(use_identity: bool) -> Result<Option<hither_core::SecretKey>> {
     Ok(if use_identity {
         Some(Identity::load_default()?.secret_key().clone())
@@ -380,7 +392,7 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
             TicketKind::Full
         },
         relay: common.relay.into(),
-        link_base: flags.link_base,
+        link_base: link_base(&flags.link_base),
         secret_key,
         ..SendOptions::default()
     };
@@ -459,7 +471,7 @@ async fn run_inbox(flags: InboxFlags, common: Common) -> Result<i32> {
             dir: flags.dir.unwrap_or_else(|| PathBuf::from(".")),
             relay: common.relay.into(),
             policy,
-            link_base: flags.link_base,
+            link_base: link_base(&flags.link_base),
         },
         tx.clone(),
     )
