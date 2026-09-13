@@ -199,6 +199,12 @@ impl Sender {
         &self.ticket
     }
 
+    /// The endpoint serving this share, for callers that want to talk to
+    /// other peers over it (an inbox announce, for example).
+    pub fn endpoint(&self) -> &Endpoint {
+        self.router.endpoint()
+    }
+
     pub fn link(&self) -> Option<&str> {
         self.link.as_deref()
     }

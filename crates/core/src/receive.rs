@@ -75,10 +75,32 @@ pub fn partial_dir(out_dir: &Path, hash: &Hash) -> PathBuf {
     out_dir.join(format!(".hither-partial-{}", &hash.to_hex()[..16]))
 }
 
-/// Download the share described by `ticket` into `opts.out_dir`.
+/// Download the share described by `ticket` into `opts.out_dir`, using a
+/// fresh endpoint.
 pub async fn receive(
     ticket: BlobTicket,
     opts: ReceiveOptions,
+    events: EventSender,
+    cancel: CancellationToken,
+) -> Result<Received> {
+    let secret_key = opts.secret_key.unwrap_or_else(SecretKey::generate);
+    let endpoint = Endpoint::builder(presets::N0)
+        .secret_key(secret_key)
+        .relay_mode(opts.relay)
+        .bind()
+        .await
+        .context("could not start networking")?;
+    let result = receive_with(&endpoint, ticket, &opts.out_dir, events, cancel).await;
+    endpoint.close().await;
+    result
+}
+
+/// Download the share described by `ticket` into `out_dir` over an endpoint
+/// the caller owns (the inbox reuses its own). The endpoint is left open.
+pub async fn receive_with(
+    endpoint: &Endpoint,
+    ticket: BlobTicket,
+    out_dir: &Path,
     events: EventSender,
     cancel: CancellationToken,
 ) -> Result<Received> {
@@ -87,10 +109,10 @@ pub async fn receive(
         format == BlobFormat::HashSeq,
         "this ticket points at a single blob, not a share of files"
     );
-    let out_dir = if opts.out_dir.as_os_str().is_empty() {
+    let out_dir = if out_dir.as_os_str().is_empty() {
         std::env::current_dir()?
     } else {
-        opts.out_dir.clone()
+        out_dir.to_path_buf()
     };
     tokio::fs::create_dir_all(&out_dir)
         .await
@@ -104,14 +126,6 @@ pub async fn receive(
         .await
         .context("could not open the download store")?;
 
-    let secret_key = opts.secret_key.unwrap_or_else(SecretKey::generate);
-    let endpoint = Endpoint::builder(presets::N0)
-        .secret_key(secret_key)
-        .relay_mode(opts.relay)
-        .bind()
-        .await
-        .context("could not start networking")?;
-
     // Bytes verified by an earlier, interrupted run.
     let had_before = store
         .remote()
@@ -122,10 +136,9 @@ pub async fn receive(
     let payload_started = AtomicBool::new(false);
 
     let result = tokio::select! {
-        r = run(&ticket, &endpoint, &store, &out_dir, &events, had_before, &payload_started) => r,
+        r = run(&ticket, endpoint, &store, &out_dir, &events, had_before, &payload_started) => r,
         _ = cancel.cancelled() => Err(anyhow::Error::new(Cancelled)),
     };
-    endpoint.close().await;
     store.shutdown().await.ok();
     // Keep the partial store only if it holds real progress: either from
     // before this run or because this run got as far as moving payload.

@@ -36,13 +36,24 @@ pub enum PathKind {
 pub enum Event {
     // ---------------------------------------------------------------- sender
     /// Hashing of the selected files is starting.
-    ImportStarted { files: u64, bytes: u64 },
+    ImportStarted {
+        files: u64,
+        bytes: u64,
+    },
     /// A single file is being hashed.
-    ImportFileStarted { name: String, size: u64 },
+    ImportFileStarted {
+        name: String,
+        size: u64,
+    },
     /// Bytes hashed so far for one file.
-    ImportFileProgress { name: String, offset: u64 },
+    ImportFileProgress {
+        name: String,
+        offset: u64,
+    },
     /// A single file has been hashed.
-    ImportFileDone { name: String },
+    ImportFileDone {
+        name: String,
+    },
     /// All files are hashed and the collection is stored.
     ImportDone {
         hash: String,
@@ -63,7 +74,9 @@ pub enum Event {
         peer: Option<String>,
     },
     /// A peer's connection closed.
-    PeerDisconnected { connection: u64 },
+    PeerDisconnected {
+        connection: u64,
+    },
     /// A peer began pulling one blob. `name` is `None` for the collection's
     /// own metadata blobs.
     UploadStarted {
@@ -87,15 +100,22 @@ pub enum Event {
         bytes: u64,
     },
     /// A request was aborted by either side.
-    UploadAborted { connection: u64, request: u64 },
+    UploadAborted {
+        connection: u64,
+        request: u64,
+    },
 
     // -------------------------------------------------------------- receiver
     /// Dialing the sender.
     Connecting,
     /// Connected to the sender.
-    Connected { peer: String },
+    Connected {
+        peer: String,
+    },
     /// The connection's path kind changed (relay vs direct).
-    PathChanged { kind: PathKind },
+    PathChanged {
+        kind: PathKind,
+    },
     /// The file list is known. `have` is how many bytes were already present
     /// locally from an earlier interrupted run.
     ManifestReceived {
@@ -104,20 +124,93 @@ pub enum Event {
         have: u64,
     },
     /// Cumulative bytes downloaded, including previously present bytes.
-    DownloadProgress { bytes: u64, total: u64 },
+    DownloadProgress {
+        bytes: u64,
+        total: u64,
+    },
     /// All bytes are verified and stored locally.
-    DownloadDone { bytes: u64, seconds: f64 },
+    DownloadDone {
+        bytes: u64,
+        seconds: f64,
+    },
     /// Writing one file to its final destination.
-    ExportFileStarted { name: String, size: u64 },
+    ExportFileStarted {
+        name: String,
+        size: u64,
+    },
     /// Bytes written so far for one file.
-    ExportFileProgress { name: String, offset: u64 },
+    ExportFileProgress {
+        name: String,
+        offset: u64,
+    },
     /// One file is in place.
-    ExportFileDone { name: String },
+    ExportFileDone {
+        name: String,
+    },
     /// Everything is on disk.
     Finished {
         files: u64,
         bytes: u64,
         dir: PathBuf,
+    },
+
+    // ----------------------------------------------------------------- inbox
+    /// The inbox is reachable and its link can be handed out.
+    InboxReady {
+        ticket: String,
+        link: Option<String>,
+        endpoint_id: String,
+    },
+    /// Someone offered files. Answer with `Inbox::decide` unless the policy
+    /// already did.
+    Offer {
+        id: u64,
+        from: String,
+        from_short: String,
+        label: Option<String>,
+        files: Vec<FileEntry>,
+        bytes: u64,
+        /// True if the inbox is waiting for a decision; false if its policy
+        /// already accepted.
+        pending: bool,
+    },
+    OfferAccepted {
+        id: u64,
+    },
+    OfferDeclined {
+        id: u64,
+        reason: String,
+    },
+    /// The pull for an accepted offer has started; the usual receive events
+    /// follow until `OfferDone` or `OfferFailed`.
+    OfferStarted {
+        id: u64,
+        dir: PathBuf,
+    },
+    OfferDone {
+        id: u64,
+        files: u64,
+        bytes: u64,
+        dir: PathBuf,
+    },
+    OfferFailed {
+        id: u64,
+        reason: String,
+    },
+
+    // -------------------------------------------------- sender to an inbox
+    /// The announce was delivered; waiting for the other side to decide.
+    OfferSent {
+        to: String,
+    },
+    ToAccepted,
+    ToDeclined {
+        reason: String,
+    },
+    /// The inbox confirmed it has everything.
+    ToDone {
+        files: u64,
+        bytes: u64,
     },
 }
 

@@ -1,21 +1,23 @@
 //! `hither`: bring files here, directly, peer to peer.
 //!
-//!     hither scans/                # share a folder
-//!     hither a.jpg b.tiff          # share a few files
-//!     hither <ticket or link>      # receive
-//!     hither get <ticket or link>  # same, spelled out
-//!     hither id                    # your stable identity
-//!     hither doctor                # can this network do direct connections?
+//!     hither scans/                    # share a folder
+//!     hither a.jpg b.tiff              # share a few files
+//!     hither <ticket or link>          # receive
+//!     hither inbox                     # open your inbox and print its link
+//!     hither to <inbox link> scans/    # offer files to someone's inbox
+//!     hither id                        # your stable identity
+//!     hither doctor                    # can this network do direct connections?
 
 mod ui;
 
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{collections::BTreeSet, path::PathBuf, str::FromStr, time::Duration};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use hither_core::{
-    CancellationToken, Cancelled, DoctorOptions, Identity, ReceiveOptions, RelayMode, SendOptions,
-    Sender, TicketKind, link,
+    AcceptPolicy, CancellationToken, Cancelled, DoctorOptions, EndpointId, Identity, Inbox,
+    InboxOptions, ReceiveOptions, RelayMode, SendOptions, Sender, TicketKind,
+    link::{self, Link},
 };
 use tracing_subscriber::EnvFilter;
 
@@ -30,7 +32,8 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Files or folders to share, or a ticket/link to receive.
+    /// Files or folders to share, a ticket/link to receive, or an inbox
+    /// link followed by files to offer.
     #[arg(value_name = "PATH|LINK")]
     items: Vec<String>,
 
@@ -64,6 +67,26 @@ enum Command {
         link: String,
         #[command(flatten)]
         flags: GetFlags,
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Open your inbox: print a stable link people can drop files into.
+    Inbox {
+        #[command(flatten)]
+        flags: InboxFlags,
+        #[command(flatten)]
+        common: Common,
+    },
+    /// Offer files to someone's inbox and stay until they have them.
+    To {
+        /// Their inbox ticket or link.
+        #[arg(value_name = "INBOX")]
+        inbox: String,
+        /// Files or folders to offer.
+        #[arg(required = true, value_name = "PATH")]
+        paths: Vec<PathBuf>,
+        #[command(flatten)]
+        flags: ToFlags,
         #[command(flatten)]
         common: Common,
     },
@@ -111,6 +134,44 @@ struct GetFlags {
     /// Directory to save into. Defaults to the current directory.
     #[arg(short, long, value_name = "DIR")]
     out: Option<PathBuf>,
+}
+
+#[derive(Args, Debug, Clone, Default)]
+struct InboxFlags {
+    /// Directory offers are saved under. Defaults to the current directory.
+    #[arg(short, long, value_name = "DIR")]
+    dir: Option<PathBuf>,
+
+    /// Accept every offer that carries your link, without asking.
+    #[arg(long)]
+    accept_all: bool,
+
+    /// Accept offers from these endpoint ids without asking (repeatable).
+    #[arg(long, value_name = "ENDPOINT_ID")]
+    accept_from: Vec<String>,
+
+    /// Wrap the inbox ticket in a link: <URL>/#<ticket>.
+    #[arg(long, env = "HITHER_LINK_BASE", value_name = "URL")]
+    link_base: Option<String>,
+
+    /// Also print the link as a QR code.
+    #[arg(long)]
+    qr: bool,
+
+    /// Replace the inbox token, which invalidates every link handed out so far.
+    #[arg(long)]
+    rotate: bool,
+}
+
+#[derive(Args, Debug, Clone, Default)]
+struct ToFlags {
+    /// A name to show the other side, e.g. --as "Sam".
+    #[arg(long = "as", value_name = "NAME")]
+    label: Option<String>,
+
+    /// Offer under your stable identity (see `hither id`).
+    #[arg(long)]
+    identity: bool,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -164,12 +225,14 @@ impl From<RelayArg> for RelayMode {
 enum Action {
     Send(Vec<PathBuf>, SendFlags, Common),
     Get(String, GetFlags, Common),
+    Inbox(InboxFlags, Common),
+    To(String, Vec<PathBuf>, ToFlags, Common),
     Id(bool, Common),
     Doctor(bool, Common),
 }
 
-fn decide(cli: Cli) -> Action {
-    match cli.command {
+fn decide(cli: Cli) -> Result<Action> {
+    Ok(match cli.command {
         Some(Command::Send {
             paths,
             flags,
@@ -180,6 +243,13 @@ fn decide(cli: Cli) -> Action {
             flags,
             common,
         }) => Action::Get(link, flags, common),
+        Some(Command::Inbox { flags, common }) => Action::Inbox(flags, common),
+        Some(Command::To {
+            inbox,
+            paths,
+            flags,
+            common,
+        }) => Action::To(inbox, paths, flags, common),
         Some(Command::Id { short, common }) => Action::Id(short, common),
         Some(Command::Doctor { json, common }) => Action::Doctor(json, common),
         None => {
@@ -187,18 +257,40 @@ fn decide(cli: Cli) -> Action {
                 Cli::command().print_help().ok();
                 std::process::exit(2);
             }
-            // A single argument that is not a path but parses as a ticket or
-            // link means "receive".
-            if cli.items.len() == 1
-                && !std::path::Path::new(&cli.items[0]).exists()
-                && link::looks_like_ticket(&cli.items[0])
-            {
-                return Action::Get(cli.items.into_iter().next().unwrap(), cli.get, cli.common);
+            // A first argument that is not a path but parses as a ticket or
+            // link decides the mode: a share link means receive, an inbox
+            // link followed by paths means offer.
+            let first = &cli.items[0];
+            let first_is_path = std::path::Path::new(first).exists();
+            match (first_is_path, link::parse_any(first)) {
+                (false, Ok(Link::Share(_))) if cli.items.len() == 1 => {
+                    Action::Get(first.clone(), cli.get, cli.common)
+                }
+                (false, Ok(Link::Share(_))) => {
+                    bail!("a share link takes no other arguments; use --out to choose a folder")
+                }
+                (false, Ok(Link::Inbox(_))) if cli.items.len() == 1 => {
+                    bail!(
+                        "that is an inbox link. Offer files to it with:\n  hither to {first} <files or folders>"
+                    )
+                }
+                (false, Ok(Link::Inbox(_))) => Action::To(
+                    first.clone(),
+                    cli.items[1..].iter().map(PathBuf::from).collect(),
+                    ToFlags {
+                        label: None,
+                        identity: cli.send.identity,
+                    },
+                    cli.common,
+                ),
+                _ => Action::Send(
+                    cli.items.into_iter().map(PathBuf::from).collect(),
+                    cli.send,
+                    cli.common,
+                ),
             }
-            let paths = cli.items.into_iter().map(PathBuf::from).collect();
-            Action::Send(paths, cli.send, cli.common)
         }
-    }
+    })
 }
 
 fn init_tracing(verbose: u8) {
@@ -216,7 +308,13 @@ fn init_tracing(verbose: u8) {
 
 #[tokio::main]
 async fn main() {
-    let action = decide(Cli::parse());
+    let action = match decide(Cli::parse()) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{} {e:#}", console::style("error:").red().bold());
+            std::process::exit(2);
+        }
+    };
     let result = match action {
         Action::Send(paths, flags, common) => {
             init_tracing(common.verbose);
@@ -225,6 +323,14 @@ async fn main() {
         Action::Get(link, flags, common) => {
             init_tracing(common.verbose);
             run_get(link, flags, common).await
+        }
+        Action::Inbox(flags, common) => {
+            init_tracing(common.verbose);
+            run_inbox(flags, common).await
+        }
+        Action::To(inbox, paths, flags, common) => {
+            init_tracing(common.verbose);
+            run_to(inbox, paths, flags, common).await
         }
         Action::Id(short, common) => {
             init_tracing(common.verbose);
@@ -244,12 +350,27 @@ async fn main() {
     }
 }
 
-async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Result<i32> {
-    let secret_key = if flags.identity {
+fn identity_key(use_identity: bool) -> Result<Option<hither_core::SecretKey>> {
+    Ok(if use_identity {
         Some(Identity::load_default()?.secret_key().clone())
     } else {
         None
-    };
+    })
+}
+
+fn ctrl_c_token() -> CancellationToken {
+    let cancel = CancellationToken::new();
+    let c = cancel.clone();
+    tokio::spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            c.cancel();
+        }
+    });
+    cancel
+}
+
+async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Result<i32> {
+    let secret_key = identity_key(flags.identity)?;
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_send(rx, flags.qr, common.verbose > 0));
     let opts = SendOptions {
@@ -284,13 +405,7 @@ async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
     let out_dir = flags.out.unwrap_or_else(|| PathBuf::from("."));
     let (tx, rx) = hither_core::channel();
     let ui = tokio::spawn(ui::render_get(rx));
-    let cancel = CancellationToken::new();
-    let cancel_on_ctrl_c = cancel.clone();
-    tokio::spawn(async move {
-        if tokio::signal::ctrl_c().await.is_ok() {
-            cancel_on_ctrl_c.cancel();
-        }
-    });
+    let cancel = ctrl_c_token();
     let result = hither_core::receive(
         ticket,
         ReceiveOptions {
@@ -307,6 +422,86 @@ async fn run_get(link: String, flags: GetFlags, common: Common) -> Result<i32> {
         Ok(_) => Ok(0),
         Err(e) if e.downcast_ref::<Cancelled>().is_some() => {
             eprintln!("\nStopped. Verified data was kept; run the same command again to resume.");
+            Ok(130)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+async fn run_inbox(flags: InboxFlags, common: Common) -> Result<i32> {
+    let identity = Identity::load_default()?;
+    let token = hither_core::inbox::load_or_create_token(flags.rotate)?;
+    let policy = if flags.accept_all {
+        AcceptPolicy::AcceptAll
+    } else if !flags.accept_from.is_empty() {
+        let mut set = BTreeSet::new();
+        for id in &flags.accept_from {
+            set.insert(
+                EndpointId::from_str(id).with_context(|| format!("{id} is not an endpoint id"))?,
+            );
+        }
+        AcceptPolicy::AcceptFrom(set)
+    } else {
+        AcceptPolicy::Ask
+    };
+    let policy_note = match &policy {
+        AcceptPolicy::Ask => "You will be asked before anything is saved.",
+        AcceptPolicy::AcceptAll => "Offers are accepted automatically.",
+        AcceptPolicy::AcceptFrom(_) => {
+            "Listed senders are accepted automatically; anyone else asks."
+        }
+    };
+    let (tx, rx) = hither_core::channel();
+    let inbox = Inbox::open(
+        &identity,
+        token,
+        InboxOptions {
+            dir: flags.dir.unwrap_or_else(|| PathBuf::from(".")),
+            relay: common.relay.into(),
+            policy,
+            link_base: flags.link_base,
+        },
+        tx.clone(),
+    )
+    .await?;
+    let ui = tokio::spawn(ui::render_inbox(
+        rx,
+        inbox.decider(),
+        flags.qr,
+        common.verbose > 0,
+        policy_note,
+    ));
+    if flags.rotate {
+        eprintln!(
+            "{}",
+            console::style("Inbox link rotated; earlier links no longer work.").yellow()
+        );
+    }
+    tokio::signal::ctrl_c().await?;
+    inbox.shutdown().await?;
+    drop(tx);
+    ui.await.ok();
+    eprintln!("Inbox closed.");
+    Ok(0)
+}
+
+async fn run_to(inbox: String, paths: Vec<PathBuf>, flags: ToFlags, common: Common) -> Result<i32> {
+    let inbox = link::parse_inbox(&inbox)?;
+    let secret_key = identity_key(flags.identity)?;
+    let (tx, rx) = hither_core::channel();
+    let ui = tokio::spawn(ui::render_to(rx, common.verbose > 0));
+    let cancel = ctrl_c_token();
+    let opts = SendOptions {
+        relay: common.relay.into(),
+        secret_key,
+        ..SendOptions::default()
+    };
+    let result = hither_core::send_to(&inbox, &paths, flags.label, opts, tx, cancel).await;
+    ui.await.ok();
+    match result {
+        Ok(_) => Ok(0),
+        Err(e) if e.downcast_ref::<Cancelled>().is_some() => {
+            eprintln!("\nStopped before the inbox had everything.");
             Ok(130)
         }
         Err(e) => Err(e),

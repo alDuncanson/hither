@@ -22,3 +22,8 @@ tokio-util = "0.7"
 futures-buffered = "0.2"
 dirs = "6"
 data-encoding = "2"
+iroh-tickets = "1"
+postcard = { version = "1", default-features = false, features = ["alloc", "use-std"] }
+subtle = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+rand = "0.10"
