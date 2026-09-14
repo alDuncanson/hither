@@ -90,6 +90,8 @@
 <main>
   <header><a class="word" href="./">hither</a></header>
 
+  <div id="platform-note" class="note" hidden></div>
+
   <!-- share link: someone is sending files -->
   <section id="share" hidden>
     <h1>Someone is sending you files.</h1>
@@ -192,6 +194,20 @@
       } else { window.prompt('Copy this:', text); }
     });
   });
+  // Phones cannot run hither yet, and Windows is not packaged; say so
+  // instead of showing a command that will not work.
+  (function platform() {
+    var ua = navigator.userAgent || '';
+    var note = document.getElementById('platform-note');
+    if (/iPhone|iPad|iPod|Android/i.test(ua)) {
+      note.textContent = 'hither runs on a Mac or Linux computer for now. Open this link there, or send it to yourself.';
+      note.hidden = false;
+      document.querySelectorAll('.cmd.big').forEach(function (c) { c.hidden = true; });
+    } else if (/Windows/i.test(ua)) {
+      note.textContent = 'Windows is not packaged yet. Use WSL, or build from source from the GitHub repository linked below.';
+      note.hidden = false;
+    }
+  })();
   window.addEventListener('hashchange', render);
   render();
 })();
