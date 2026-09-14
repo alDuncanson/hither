@@ -643,7 +643,9 @@ async fn announce_and_wait(
         .endpoint()
         .connect(inbox.addr.clone(), ALPN)
         .await
-        .context("could not reach the inbox. Is it open?")?;
+        .map_err(|e| {
+            anyhow::anyhow!("could not reach the inbox. Is it open? ({})", net::brief(e))
+        })?;
     let (mut send, mut recv) = connection.open_bi().await?;
     write_frame(
         &mut send,

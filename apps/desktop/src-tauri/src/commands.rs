@@ -174,6 +174,8 @@ pub async fn stop_share(state: State<'_, AppState>, id: u64) -> CmdResult<()> {
 #[derive(Serialize)]
 pub struct ReceiveInfo {
     pub dir: String,
+    /// Top-level names written under `dir`.
+    pub into: Vec<String>,
     pub files: u64,
     pub bytes: u64,
 }
@@ -207,6 +209,7 @@ pub async fn receive(
     .map_err(err)?;
     Ok(ReceiveInfo {
         dir: received.dir.display().to_string(),
+        into: received.into,
         files: received.files.len() as u64,
         bytes: received.bytes,
     })

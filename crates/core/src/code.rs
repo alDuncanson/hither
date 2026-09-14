@@ -206,7 +206,7 @@ pub async fn redeem_with(endpoint: &Endpoint, code: &Code, net: &NetOptions) -> 
     }
     bail!(
         "nobody is sharing under the code {code} right now ({}). Codes only work while the sender's window is open.",
-        last_err.unwrap_or_default()
+        net::brief(last_err.unwrap_or_default())
     )
 }
 

@@ -3,7 +3,7 @@
 //!     hither scans/                    # share a folder
 //!     hither a.jpg b.tiff              # share a few files
 //!     hither <ticket or link>          # receive
-//!     hither scans/ --code             # also print four words to say aloud
+//!     hither scans/ --once             # stop as soon as one person has it all
 //!     hither able-cactus-river-mouse    # receive by code
 //!     hither inbox                     # open your inbox and print its link
 //!     hither to <inbox link> scans/    # offer files to someone's inbox
@@ -177,10 +177,13 @@ struct SendFlags {
     #[arg(long)]
     qr: bool,
 
-    /// Also mint four words the other side can type instead of the link:
-    /// `hither able-cactus-river-mouse`. Works while this command runs.
+    /// Skip the four spoken words that are printed alongside the link.
     #[arg(long)]
-    code: bool,
+    no_code: bool,
+
+    /// Stop sharing as soon as one person has received everything.
+    #[arg(long)]
+    once: bool,
 
     /// Base of the printed link, <URL>#<ticket>. Pass an empty string to
     /// print only the ticket.
@@ -518,7 +521,13 @@ fn ctrl_c_token() -> CancellationToken {
 async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Result<i32> {
     let secret_key = identity_key(flags.identity)?;
     let (tx, rx) = hither_core::channel();
-    let ui = tokio::spawn(ui::render_send(rx, flags.qr, common.verbose > 0));
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    let ui = tokio::spawn(ui::render_send(
+        rx,
+        flags.qr,
+        common.verbose > 0,
+        flags.once.then_some(done_tx),
+    ));
     let opts = SendOptions {
         net: net(&common, secret_key),
         ticket_kind: if flags.short {
@@ -527,7 +536,7 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
             TicketKind::Full
         },
         link_base: link_base(&flags.link_base),
-        code: flags.code,
+        code: !flags.no_code,
         ..SendOptions::default()
     };
     let sender = match Sender::start(&paths, opts, tx.clone()).await {
@@ -538,7 +547,19 @@ async fn run_send(paths: Vec<PathBuf>, flags: SendFlags, common: Common) -> Resu
             return Err(e);
         }
     };
-    tokio::signal::ctrl_c().await?;
+    let first_complete = async {
+        if flags.once {
+            let _ = done_rx.await;
+        } else {
+            std::future::pending::<()>().await;
+        }
+    };
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = first_complete => {
+            eprintln!("{}", console::style("They have everything. Stopping.").dim());
+        }
+    }
     exit_on_next_ctrl_c();
     sender.shutdown().await?;
     drop(tx);

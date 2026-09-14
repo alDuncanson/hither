@@ -7,6 +7,9 @@
 
 use std::{
     collections::{HashMap, VecDeque},
+    io::Write,
+    path::Path,
+    process::{Command, Stdio},
     time::Duration,
 };
 
@@ -80,6 +83,48 @@ fn path_label(kind: PathKind) -> String {
         PathKind::Relay => "Relayed".into(),
         PathKind::Unknown => "Receiving".into(),
     }
+}
+
+/// Best-effort copy through the system's clipboard tool (pbcopy, wl-copy,
+/// xclip, xsel). Quiet on failure; `HITHER_NO_CLIPBOARD=1` disables it.
+fn clipboard(text: &str) -> bool {
+    if std::env::var_os("HITHER_NO_CLIPBOARD").is_some() {
+        return false;
+    }
+    let tools: &[(&str, &[&str])] = &[
+        ("pbcopy", &[]),
+        ("wl-copy", &[]),
+        ("xclip", &["-selection", "clipboard"]),
+        ("xsel", &["--clipboard", "--input"]),
+    ];
+    for (tool, args) in tools {
+        let Ok(mut child) = Command::new(tool)
+            .args(*args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            continue;
+        };
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(text.as_bytes());
+        }
+        if child.wait().map(|st| st.success()).unwrap_or(false) {
+            return true;
+        }
+    }
+    false
+}
+
+/// `/Users/al/Downloads/album` as `~/Downloads/album`.
+fn pretty_path(path: &Path) -> String {
+    if let Some(home) = dirs::home_dir()
+        && let Ok(rest) = path.strip_prefix(&home)
+    {
+        return format!("~/{}", rest.display());
+    }
+    path.display().to_string()
 }
 
 // ------------------------------------------------------- view: hashing
@@ -174,6 +219,8 @@ struct PeersView {
     /// Print a line when a peer disconnects (the plain share wants it; an
     /// inbox delivery reports completion through its own message instead).
     announce_disconnects: bool,
+    /// How many peers have received the whole share so far.
+    completed: u32,
 }
 
 impl PeersView {
@@ -194,13 +241,21 @@ impl PeersView {
                     },
                 );
             }
-            Event::PeerDisconnected { connection } => {
+            Event::PeerDisconnected {
+                connection,
+                bytes_sent,
+            } => {
                 if let Some(peer) = self.peers.remove(connection) {
-                    let pos = peer.position(total);
+                    // The provider's own count beats our running estimate.
+                    let pos = (*bytes_sent).max(peer.position(total)).min(total);
+                    let complete = total > 0 && *bytes_sent >= total;
+                    if complete {
+                        self.completed += 1;
+                    }
                     peer.bar.finish_and_clear();
                     mp.remove(&peer.bar);
                     if self.announce_disconnects && peer.sent_named {
-                        if pos >= total {
+                        if complete {
                             say(
                                 mp,
                                 format!(
@@ -401,11 +456,20 @@ impl ReceiveView {
                     pb.inc(1);
                 }
             }
-            Event::Finished { files, bytes, dir } => {
+            Event::Finished {
+                files,
+                bytes,
+                dir,
+                into,
+            } => {
                 if let Some(pb) = self.export.take() {
                     pb.finish_and_clear();
                 }
                 if !self.quiet_finish {
+                    let where_ = match into.as_slice() {
+                        [one] => pretty_path(&dir.join(one)),
+                        many => format!("{} ({})", pretty_path(dir), many.join(", ")),
+                    };
                     say(
                         mp,
                         format!(
@@ -413,7 +477,7 @@ impl ReceiveView {
                             style("✓").green().bold(),
                             style(count_files(*files)).bold(),
                             HumanBytes(*bytes),
-                            style(dir.display()).bold()
+                            style(where_).bold()
                         ),
                     );
                 }
@@ -436,7 +500,12 @@ impl ReceiveView {
 // ------------------------------------------------------------ renderers
 
 /// `hither <paths>`: hash, print the ticket, show peers pulling.
-pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
+pub async fn render_send(
+    mut rx: EventReceiver,
+    show_qr: bool,
+    verbose: bool,
+    mut first_complete: Option<tokio::sync::oneshot::Sender<()>>,
+) {
     let mp = MultiProgress::with_draw_target(ProgressDrawTarget::stderr());
     let mut hashing = HashingView::default();
     let mut peers = PeersView {
@@ -445,6 +514,11 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
     };
     while let Some(ev) = rx.recv().await {
         if hashing.handle(&mp, &ev) || peers.handle(&mp, &ev, hashing.total_bytes) {
+            if peers.completed > 0
+                && let Some(tx) = first_complete.take()
+            {
+                let _ = tx.send(());
+            }
             continue;
         }
         if let Event::Ready {
@@ -489,6 +563,12 @@ pub async fn render_send(mut rx: EventReceiver, show_qr: bool, verbose: bool) {
                 out.push_str(&format!(
                     "{}\n\n",
                     style(format!("Reachable via: {}", addrs.join(", "))).dim()
+                ));
+            }
+            if clipboard(&target) {
+                out.push_str(&format!(
+                    "{}\n",
+                    style("The link is on your clipboard.").dim()
                 ));
             }
             out.push_str(&format!(
@@ -609,7 +689,8 @@ pub async fn render_inbox(
                 }
                 match &ev {
                     Event::InboxReady { ticket, link, endpoint_id } => {
-                        say_out(&mp, inbox_banner(ticket, link.as_deref(), endpoint_id, show_qr, policy_note));
+                        let copied = clipboard(link.as_deref().unwrap_or(ticket));
+                        say_out(&mp, inbox_banner(ticket, link.as_deref(), endpoint_id, show_qr, policy_note, copied));
                     }
                     Event::Offer {
                         id,
@@ -670,6 +751,7 @@ fn inbox_banner(
     endpoint_id: &str,
     show_qr: bool,
     policy_note: &str,
+    copied: bool,
 ) -> String {
     let target = link.unwrap_or(ticket).to_string();
     let mut out = format!("{}\n\n", style("Your inbox is open.").bold());
@@ -690,6 +772,12 @@ fn inbox_banner(
     if show_qr && let Some(code) = qr(&target) {
         out.push_str(&code);
         out.push('\n');
+    }
+    if copied {
+        out.push_str(&format!(
+            "{}\n",
+            style("The link is on your clipboard.").dim()
+        ));
     }
     out.push_str(&format!(
         "{}\n{}\n{}\n{}",

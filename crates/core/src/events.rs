@@ -87,9 +87,12 @@ pub enum Event {
         connection: u64,
         peer: Option<String>,
     },
-    /// A peer's connection closed.
+    /// A peer's connection closed. `bytes_sent` is the payload it actually
+
+    /// received over this connection; compare with the share's total.
     PeerDisconnected {
         connection: u64,
+        bytes_sent: u64,
     },
     /// A peer began pulling one blob. `name` is `None` for the collection's
     /// own metadata blobs.
@@ -161,11 +164,13 @@ pub enum Event {
     ExportFileDone {
         name: String,
     },
-    /// Everything is on disk.
+    /// Everything is on disk. `into` lists the top-level names that were
+    /// written under `dir`, after any renaming to avoid existing files.
     Finished {
         files: u64,
         bytes: u64,
         dir: PathBuf,
+        into: Vec<String>,
     },
 
     // ----------------------------------------------------------------- inbox

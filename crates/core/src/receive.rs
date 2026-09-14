@@ -6,7 +6,8 @@
 //! 1. [`connect`]: dial the sender named in the ticket.
 //! 2. [`fetch_manifest`]: pull the tiny collection index and the size of
 //!    every blob, so names and totals are known before real data moves.
-//! 3. [`refuse_overwrite`]: never clobber an existing file.
+//! 3. [`pick_fresh_names`]: never clobber an existing file; like a browser,
+//!    write `album-2` when `album` is already there.
 //! 4. [`download_missing`]: ask for exactly the chunks the local store
 //!    lacks, verified against the root hash as they arrive.
 //! 5. [`export`]: rename the verified files out of the partial store.
@@ -47,6 +48,8 @@ use crate::{
     throttle::Throttle,
 };
 
+use std::collections::BTreeMap;
+
 /// Largest collection index we are willing to fetch: 32 MiB of hashes,
 /// roughly a million files.
 const MAX_HASH_SEQ_BYTES: u64 = 32 * 1024 * 1024;
@@ -67,6 +70,8 @@ pub struct Received {
     pub files: Vec<FileEntry>,
     pub bytes: u64,
     pub dir: PathBuf,
+    /// Top-level names as written under `dir` (renamed if they collided).
+    pub into: Vec<String>,
     pub elapsed: Duration,
     /// How the sender was reached at the end of the transfer.
     pub path_kind: PathKind,
@@ -172,14 +177,31 @@ struct Manifest {
 }
 
 struct PlannedFile {
+    /// The name inside the share, as the sender chose it.
     name: String,
     hash: Hash,
     size: u64,
-    /// Where it will be written.
+    /// Where it will be written, after collision renaming.
     target: PathBuf,
 }
 
 impl Manifest {
+    /// The distinct top-level names actually written under the destination.
+    fn top_levels(&self, out_dir: &Path) -> Vec<String> {
+        let mut seen = Vec::new();
+        for f in &self.files {
+            if let Ok(rel) = f.target.strip_prefix(out_dir)
+                && let Some(first) = rel.components().next()
+            {
+                let name = first.as_os_str().to_string_lossy().to_string();
+                if !seen.contains(&name) {
+                    seen.push(name);
+                }
+            }
+        }
+        seen
+    }
+
     fn entries(&self) -> Vec<FileEntry> {
         self.files
             .iter()
@@ -215,7 +237,8 @@ async fn run(
         path_kind.clone(),
     )));
 
-    let manifest = fetch_manifest(store, &connection, hash, out_dir).await?;
+    let mut manifest = fetch_manifest(store, &connection, hash, out_dir).await?;
+    pick_fresh_names(&mut manifest, out_dir)?;
     let local = store.remote().local(content).await?;
     emit(
         events,
@@ -226,7 +249,6 @@ async fn run(
         },
     )
     .await;
-    refuse_overwrite(&manifest)?;
 
     let (bytes_read, seconds) = download_missing(
         store,
@@ -256,6 +278,7 @@ async fn run(
         files: manifest.entries(),
         bytes: manifest.payload_bytes,
         dir: out_dir.to_path_buf(),
+        into: manifest.top_levels(out_dir),
         elapsed: started.elapsed(),
         path_kind: final_kind,
     };
@@ -265,6 +288,7 @@ async fn run(
             files: received.files.len() as u64,
             bytes: received.bytes,
             dir: received.dir.clone(),
+            into: received.into.clone(),
         },
     )
     .await;
@@ -281,7 +305,12 @@ async fn connect(
     let connection = endpoint
         .connect(ticket.addr().clone(), iroh_blobs::ALPN)
         .await
-        .context("could not reach the sender. Are they still sharing?")?;
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "could not reach the sender. Are they still sharing? ({})",
+                net::brief(e)
+            )
+        })?;
     emit(
         events,
         Event::Connected {
@@ -344,16 +373,58 @@ async fn fetch_manifest(
     })
 }
 
-/// Phase 3: decide about collisions before downloading gigabytes.
-fn refuse_overwrite(manifest: &Manifest) -> Result<()> {
+/// Phase 3: never overwrite. Each top-level name in the share (`album`,
+/// `notes.txt`) that already exists at the destination is written under a
+/// fresh name instead, `album-2` or `notes-2.txt`, the way browsers handle
+/// a second download. Decided before any payload moves.
+fn pick_fresh_names(manifest: &mut Manifest, out_dir: &Path) -> Result<()> {
+    // top-level name in the share -> top-level name on disk
+    let mut renames: BTreeMap<String, String> = BTreeMap::new();
     for f in &manifest.files {
+        let top = f.name.split('/').next().unwrap_or(&f.name).to_string();
+        if renames.contains_key(&top) {
+            continue;
+        }
+        let mut chosen = top.clone();
+        if out_dir.join(&chosen).exists() {
+            let (stem, ext) = split_ext(&top);
+            let mut n = 2;
+            loop {
+                let candidate = format!("{stem}-{n}{ext}");
+                if !out_dir.join(&candidate).exists() {
+                    chosen = candidate;
+                    break;
+                }
+                n += 1;
+            }
+        }
+        renames.insert(top, chosen);
+    }
+    for f in &mut manifest.files {
+        let mut parts = f.name.splitn(2, '/');
+        let top = parts.next().unwrap_or("");
+        let rest = parts.next();
+        let mapped = renames.get(top).cloned().unwrap_or_else(|| top.to_string());
+        let on_disk = match rest {
+            Some(rest) => format!("{mapped}/{rest}"),
+            None => mapped,
+        };
+        f.target = paths::destination(out_dir, &on_disk)?;
         ensure!(
             !f.target.exists(),
-            "{} already exists. Move it away or choose another output directory",
+            "{} appeared while planning the download",
             f.target.display()
         );
     }
     Ok(())
+}
+
+/// `photo.tiff` -> ("photo", ".tiff"); `album` -> ("album", "").
+fn split_ext(name: &str) -> (String, String) {
+    match name.rfind('.') {
+        Some(i) if i > 0 => (name[..i].to_string(), name[i..].to_string()),
+        _ => (name.to_string(), String::new()),
+    }
 }
 
 /// Phase 4: download whatever is still missing, verified on the way in.

@@ -103,6 +103,27 @@ pub async fn endpoint(opts: &NetOptions, alpns: Vec<Vec<u8>>) -> Result<Endpoint
     builder.bind().await.context("could not start networking")
 }
 
+/// Error chains from the network stack repeat themselves ("timed out: timed
+/// out: timed out"). Keep each distinct message once, for people.
+pub fn brief(err: impl std::fmt::Display) -> String {
+    let text = err.to_string();
+    let mut out: Vec<&str> = Vec::new();
+    for part in text.split(": ") {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        if out
+            .last()
+            .is_some_and(|last| last.eq_ignore_ascii_case(part))
+        {
+            continue;
+        }
+        out.push(part);
+    }
+    out.join(": ")
+}
+
 /// Wait until the endpoint has a relay connection, bounded by
 /// [`ONLINE_TIMEOUT`]. A no-op when relays are disabled.
 pub async fn wait_online(endpoint: &Endpoint, opts: &NetOptions) {

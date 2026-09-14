@@ -175,12 +175,13 @@ async fn share_then_receive_roundtrip() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn receive_refuses_to_overwrite_and_leaves_nothing_behind() {
+async fn receive_never_overwrites_it_picks_a_fresh_name() {
     with_timeout(async {
         let src = tempfile::tempdir().unwrap();
         let dst = tempfile::tempdir().unwrap();
         let album = make_tree(src.path(), 256 * 1024);
-        // A file that would collide.
+        // Something already called `album` at the destination, like a second
+        // download of the same share into Downloads.
         std::fs::create_dir_all(dst.path().join("album")).unwrap();
         std::fs::write(dst.path().join("album/notes.txt"), b"mine").unwrap();
 
@@ -188,8 +189,8 @@ async fn receive_refuses_to_overwrite_and_leaves_nothing_behind() {
         let sender = Sender::start(&[album], local_send_options(), stx)
             .await
             .unwrap();
-        let (rtx, revents) = collector();
-        let err = receive(
+        let (rtx, _) = collector();
+        let received = receive(
             sender.ticket().clone(),
             ReceiveOptions {
                 out_dir: dst.path().to_path_buf(),
@@ -199,21 +200,16 @@ async fn receive_refuses_to_overwrite_and_leaves_nothing_behind() {
             CancellationToken::new(),
         )
         .await
-        .expect_err("must refuse");
-        assert!(format!("{err:#}").contains("already exists"), "{err:#}");
+        .expect("receives under a fresh name");
+        assert_eq!(received.into, vec!["album-2".to_string()]);
         assert_eq!(
             std::fs::read(dst.path().join("album/notes.txt")).unwrap(),
-            b"mine"
+            b"mine",
+            "untouched"
         );
+        assert_same_tree(&src.path().join("album"), &dst.path().join("album-2"));
         assert!(!hither_core::partial_dir(dst.path(), &sender.ticket().hash()).exists());
         sender.shutdown().await.unwrap();
-        let revents = revents.await.unwrap();
-        // It learned the file list but never started the payload.
-        assert!(has(&revents, |e| matches!(
-            e,
-            Event::ManifestReceived { .. }
-        )));
-        assert!(!has(&revents, |e| matches!(e, Event::DownloadDone { .. })));
     })
     .await;
 }

@@ -132,8 +132,8 @@ function onShareEvent(id, ev) {
     }
     case "peer_disconnected": {
       const p = s.peers.get(ev.connection); if (!p) break;
-      const pos = peerPosition(s, p);
-      p.row.firstChild.textContent = pos >= s.total ? `${p.label} received everything` : `${p.label} disconnected after ${bytes(pos)}`;
+      const pos = Math.max(ev.bytes_sent || 0, peerPosition(s, p));
+      p.row.firstChild.textContent = s.total && ev.bytes_sent >= s.total ? `${p.label} received everything` : `${p.label} disconnected after ${bytes(pos)}`;
       p.row.querySelector(".bar").remove();
       s.peers.delete(ev.connection); break;
     }
@@ -184,7 +184,8 @@ async function startReceive(input) {
   try {
     const info = await invoke("receive", { input, outDir: $("#recv-dir").value || null });
     status.className = "status good";
-    status.textContent = `Saved ${files(info.files)} (${bytes(info.bytes)}) to ${info.dir}`;
+    const where = info.into && info.into.length === 1 ? `${info.dir}/${info.into[0]}` : info.dir;
+    status.textContent = `Saved ${files(info.files)} (${bytes(info.bytes)}) to ${where}`;
     status.append(" ", el("button", { class: "linkish", onclick: () => reveal(info.dir) }, "Show in Finder"));
   } catch (e) {
     status.className = "status bad"; status.textContent = String(e);

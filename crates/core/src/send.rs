@@ -6,7 +6,12 @@
 //! From then on iroh-blobs answers requests on its own; we only translate its
 //! provider events into our [`Event`]s so a UI can show who is pulling what.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use anyhow::{Context, Result, bail};
 use futures_buffered::BufferedStreamExt;
@@ -28,7 +33,7 @@ use iroh_blobs::{
 use n0_future::{FuturesUnordered, StreamExt, task::AbortOnDropHandle};
 use tempfile::TempDir;
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::{
     code::{Code, CodeServer},
@@ -180,10 +185,16 @@ impl Sender {
         };
         // 4. Optionally, a spoken code: a second endpoint under the code's
         //    key that hands out the ticket.
+        // A code that fails to start must not take the share down with it.
         let code = if opts.code {
             let code = Code::generate();
-            let server = CodeServer::start(&code, ticket.to_string(), &opts.net).await?;
-            Some((code, server))
+            match CodeServer::start(&code, ticket.to_string(), &opts.net).await {
+                Ok(server) => Some((code, server)),
+                Err(e) => {
+                    warn!("no spoken code for this share: {e:#}");
+                    None
+                }
+            }
         } else {
             None
         };
@@ -373,6 +384,9 @@ async fn forward_provider_events(
     events: EventSender,
 ) {
     let mut tasks = FuturesUnordered::new();
+    // Payload bytes sent per connection, so a disconnect can say whether
+    // that peer got everything.
+    let sent: Arc<Mutex<HashMap<u64, u64>>> = Arc::new(Mutex::new(HashMap::new()));
     loop {
         tokio::select! {
             biased;
@@ -386,12 +400,13 @@ async fn forward_provider_events(
                         }).await;
                     }
                     ProviderMessage::ConnectionClosed(m) => {
-                        emit(&events, Event::PeerDisconnected { connection: m.connection_id }).await;
+                        let bytes_sent = sent.lock().unwrap().remove(&m.connection_id).unwrap_or(0);
+                        emit(&events, Event::PeerDisconnected { connection: m.connection_id, bytes_sent }).await;
                     }
                     ProviderMessage::GetRequestReceivedNotify(m) => {
                         let connection = m.connection_id;
                         let request = m.request_id;
-                        tasks.push(forward_request(connection, request, m.rx, names.clone(), events.clone()));
+                        tasks.push(forward_request(connection, request, m.rx, names.clone(), events.clone(), sent.clone()));
                     }
                     other => debug!("ignoring provider event {other:?}"),
                 }
@@ -408,6 +423,7 @@ async fn forward_request(
     mut rx: irpc::channel::mpsc::Receiver<RequestUpdate>,
     names: Arc<HashMap<Hash, String>>,
     events: EventSender,
+    sent: Arc<Mutex<HashMap<u64, u64>>>,
 ) {
     let mut throttle = Throttle::default();
     while let Ok(Some(update)) = rx.recv().await {
@@ -438,6 +454,8 @@ async fn forward_request(
                 }
             }
             RequestUpdate::Completed(done) => {
+                *sent.lock().unwrap().entry(connection).or_insert(0) +=
+                    done.stats.payload_bytes_sent;
                 emit(
                     &events,
                     Event::UploadDone {
