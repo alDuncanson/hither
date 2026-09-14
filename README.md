@@ -11,8 +11,8 @@ hither scans/                  # share a folder
 hither img1.jpg img2.tiff      # share a few files
 hither <ticket-or-link>        # bring a share hither, into your Downloads folder
 hither get <ticket-or-link>    # the same, spelled out
-hither scans/ --code           # also print four words to say over the phone...
-hither able-cactus-river-mouse # ...which the other side types instead of the link
+hither able-cactus-river-mouse # receive by the four words every share also prints
+hither scans/ --once           # stop sharing as soon as one person has it all
 hither inbox                   # open your inbox; hand out its link
 hither to <inbox-link> scans/  # offer files to someone's inbox
 hither friends add sam <link>  # save an inbox under a name...
@@ -87,8 +87,8 @@ the same ticket again, for the desktop app's URL scheme.
 
 ### Spoken codes
 
-`hither scans/ --code` also prints four words such as
-`able-cactus-river-mouse`. The other side runs `hither able cactus river
+Every share also prints four words such as `able-cactus-river-mouse`
+(`--no-code` turns that off). The other side runs `hither able cactus river
 mouse` and gets the files. No server is involved: both sides derive the same
 keypair from the words, the sender runs a tiny second endpoint under that
 key that hands over the real ticket, and the receiver finds it through
@@ -232,4 +232,10 @@ paid n0 plan; direct connections are not affected.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0, at your option, which is the Rust ecosystem's convention
+(Rust itself, iroh and most crates use it). MIT is the short, maximally
+compatible one. Apache-2.0 adds an explicit patent grant and clearer
+contribution terms, which some companies require. Offering both lets anyone
+pick the one that fits their project: a GPLv2 codebase can take the MIT
+side, a corporate one the Apache side, and code can move freely between
+hither and the iroh crates it builds on.

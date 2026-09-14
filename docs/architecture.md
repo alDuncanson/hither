@@ -138,7 +138,7 @@ sequenceDiagram
     D->>S: get missing chunks
     S-->>D: BLAKE3-verified stream, resumable
     D->>D: rename verified files into place
-    D-->>S: close; sender sees "received everything"
+    D-->>S: close. Sender sees "received everything"
 ```
 
 ### Receiver-initiated: `hither inbox`
@@ -228,7 +228,7 @@ flowchart TB
     seq --> f1["file blob<br/>scans/roll-12/0001.tiff"]
     seq --> f2["file blob<br/>scans/roll-12/0002.tiff"]
     seq --> fn["… file blob n"]
-    f2 --> tree["BLAKE3 tree (outboard)<br/>stored; data by reference"]
+    f2 --> tree["BLAKE3 tree (outboard)<br/>stored, data by reference"]
     tree --> c1["chunk 0<br/>16 KiB, verified"]
     tree --> c2["chunk 1"]
     tree --> cn["… chunk k"]

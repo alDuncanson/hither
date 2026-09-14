@@ -419,6 +419,42 @@ never compiles into the macOS app, and no semver-compatible update exists
 until Tauri moves to gtk 0.20. Nothing to do on our side; re-check after the
 next Tauri minor.
 
+## UX self-audit (2026-09-13, alpha.7)
+
+Walked every screen a person sees. Fixed now:
+
+- **The link lands on the sender's clipboard** (`pbcopy`, `wl-copy`, `xclip`
+  or `xsel`, whichever exists; `HITHER_NO_CLIPBOARD=1` disables). The very
+  next thing a sender does is paste the link into a message.
+- **Spoken codes are on by default** (`--no-code` to skip). Zero cost to the
+  sender, and "or say: hither retire shoe crunch amount" is the friendliest
+  line we print. A code that fails to start no longer fails the share.
+- **`--once`** stops sharing as soon as one receiver has everything, for the
+  common one-to-one case. Default stays multi-use.
+- **Receives never refuse a collision any more.** A second download of
+  `album` lands in `album-2`, like a browser; existing files are untouched.
+  `Finished` and `Received` carry `into`, the top-level names written, and
+  the CLI prints `Saved 3 files to ~/Downloads/album-2`.
+- **Error chains are deduplicated** (`timed out: timed out: timed out` is
+  gone) via `net::brief`.
+- **The landing page speaks to phones and Windows** instead of showing a
+  command that cannot work there.
+- **Windows compiles in CI** as a first step toward a Windows build.
+
+Backlog, roughly by value:
+
+- Windows release target and a PowerShell installer once CI is green there.
+- A once-a-day "a newer hither is available" hint for direct CLI users
+  (`run.sh` already updates; `hither upgrade` exists).
+- Inbox codes: `hither <words> <files>`.
+- Show the file list before download on the receive side (the manifest
+  arrives first; today the CLI only shows counts).
+- Progress ETA on long transfers.
+- `hither friends add` straight from an inbox link pasted into `hither`
+  alone (currently a hint).
+- Menu bar app: test on screen, then the updater, then signing.
+- Accessibility pass on the CLI colors (all states also carry a word).
+
 ## Lessons that cost real time
 
 - **Ctrl-C hang in `hither inbox` (fixed in 0.1.0-alpha.3).** The UI task held
