@@ -262,7 +262,9 @@ push wake-ups for a future mobile inbox, and the keeper. None of them should
 ever hold plaintext files or private keys.
 
 Release note: bump the workspace `version` in `Cargo.toml` before tagging so
-`hither --version` matches the tag (v0.1.0-alpha.1 binaries report 0.1.0).
+`hither --version` matches the tag (v0.1.0-alpha.1 binaries report 0.1.0),
+then run `cargo build` so `Cargo.lock` records the new version, or every
+`--locked` job in CI fails (alpha.7 learned this the hard way).
 
 ## Short links and spoken codes (open decision)
 
